@@ -1,0 +1,55 @@
+[package]
+name = "cat_impl"
+version = "0.1.0"
+edition = "2024"
+authors = ["Suhas Nandakumar"]
+description = "Implementation of CTA-5007-B Common Access Token specification"
+license = "MIT "
+repository = "https://github.com/suhasHere/cat.rs.git"
+keywords = ["cat", "cwt", "cbor", "token", "authentication"]
+categories = ["authentication", "cryptography"]
+
+[dependencies]
+ciborium = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.11"
+base64 = "0.22"
+ring = "0.17"
+hmac = "0.12"
+sha2 = "0.10"
+p256 = { version = "0.13", features = ["ecdsa"] }
+rsa = { version = "0.9", features = ["sha2"] }
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+geohash = "0.13"
+
+[dependencies.regex]
+version = "1.10"
+
+[dependencies.hex]
+version = "0.4"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[lib]
+name = "cat_impl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cat-cli"
+path = "src/bin/main.rs"
+
+[[bench]]
+name = "token_bench"
+harness = false
+
+[[bench]]
+name = "crypto_bench"
+harness = false
+
+[[bench]]
+name = "cbor_bench"
+harness = false
