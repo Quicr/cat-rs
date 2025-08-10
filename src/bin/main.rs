@@ -4,7 +4,7 @@ use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         println!("Usage: {} <command> [args...]", args[0]);
         println!("Commands:");
@@ -38,55 +38,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn generate_hmac_example() -> Result<(), Box<dyn std::error::Error>> {
     let key = HmacSha256Algorithm::generate_key();
     let algorithm = HmacSha256Algorithm::new(&key);
-    
+
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
-    
+
     println!("HMAC256 Key (hex): {}", format!("{:x?}", key));
     println!("Sample CAT Token: {}", encoded);
-    
+
     let decoded = decode_token(&encoded, &algorithm)?;
     println!("Token verified and decoded successfully!");
     println!("Issuer: {:?}", decoded.core.iss);
     println!("Audience: {:?}", decoded.core.aud);
     println!("Version: {:?}", decoded.cat.catv);
-    
+
     Ok(())
 }
 
 fn generate_es256_example() -> Result<(), Box<dyn std::error::Error>> {
     let algorithm = Es256Algorithm::new_with_key_pair()?;
-    
+
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
-    
+
     println!("ES256 Public Key: {:?}", algorithm.verifying_key());
     println!("Sample CAT Token: {}", encoded);
-    
+
     let decoded = decode_token(&encoded, &algorithm)?;
     println!("Token verified and decoded successfully!");
     println!("Issuer: {:?}", decoded.core.iss);
     println!("Audience: {:?}", decoded.core.aud);
     println!("Version: {:?}", decoded.cat.catv);
-    
+
     Ok(())
 }
 
 fn generate_ps256_example() -> Result<(), Box<dyn std::error::Error>> {
     let algorithm = Ps256Algorithm::new_with_key_pair()?;
-    
+
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
-    
+
     println!("PS256 Public Key: {:?}", algorithm.public_key());
     println!("Sample CAT Token: {}", encoded);
-    
+
     let decoded = decode_token(&encoded, &algorithm)?;
     println!("Token verified and decoded successfully!");
     println!("Issuer: {:?}", decoded.core.iss);
     println!("Audience: {:?}", decoded.core.aud);
     println!("Version: {:?}", decoded.cat.catv);
-    
+
     Ok(())
 }
 
@@ -101,7 +101,7 @@ fn verify_token(token_str: &str, alg: &str) -> Result<(), Box<dyn std::error::Er
 fn create_sample_token() -> CatToken {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     CatTokenBuilder::new()
         .issuer("https://example.com")
         .audience(vec!["https://api.example.com".to_string()])

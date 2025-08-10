@@ -10,9 +10,26 @@ fn test_core_claims() {
         .with_not_before(Utc::now() - chrono::Duration::minutes(5))
         .with_cwt_id("unique-token-id".to_string());
 
-    assert_eq!(token.core.iss, Some("https://issuer.example.com".to_string()));
-    assert!(token.core.aud.as_ref().unwrap().contains(&"audience1".to_string()));
-    assert!(token.core.aud.as_ref().unwrap().contains(&"audience2".to_string()));
+    assert_eq!(
+        token.core.iss,
+        Some("https://issuer.example.com".to_string())
+    );
+    assert!(
+        token
+            .core
+            .aud
+            .as_ref()
+            .unwrap()
+            .contains(&"audience1".to_string())
+    );
+    assert!(
+        token
+            .core
+            .aud
+            .as_ref()
+            .unwrap()
+            .contains(&"audience2".to_string())
+    );
     assert!(token.core.exp.is_some());
     assert!(token.core.nbf.is_some());
     assert_eq!(token.core.cti, Some("unique-token-id".to_string()));
@@ -32,13 +49,13 @@ fn test_cat_claims() {
     assert_eq!(token.cat.catu, Some(100));
     assert_eq!(token.cat.catreplay, Some("nonce-12345".to_string()));
     assert_eq!(token.cat.catpor, Some(true));
-    
+
     assert!(token.cat.catgeocoord.is_some());
     let coords = token.cat.catgeocoord.unwrap();
     assert_eq!(coords.lat, 37.7749);
     assert_eq!(coords.lon, -122.4194);
     assert_eq!(coords.accuracy, Some(10.0));
-    
+
     assert_eq!(token.cat.geohash, Some("9q8yy".to_string()));
 }
 
@@ -52,7 +69,10 @@ fn test_informational_claims() {
 
     assert_eq!(token.informational.sub, Some("user123".to_string()));
     assert_eq!(token.informational.iat, Some(iat.timestamp()));
-    assert_eq!(token.informational.catifdata, Some("interface-data".to_string()));
+    assert_eq!(
+        token.informational.catifdata,
+        Some("interface-data".to_string())
+    );
 }
 
 #[test]
@@ -111,16 +131,28 @@ fn test_token_builder() {
 #[test]
 fn test_geo_coordinate_validation() {
     // Valid coordinates
-    let coord1 = GeoCoordinate { lat: 45.0, lon: 90.0, accuracy: None };
+    let coord1 = GeoCoordinate {
+        lat: 45.0,
+        lon: 90.0,
+        accuracy: None,
+    };
     assert!(coord1.lat.abs() <= 90.0);
     assert!(coord1.lon.abs() <= 180.0);
 
     // Edge case coordinates
-    let coord2 = GeoCoordinate { lat: -90.0, lon: -180.0, accuracy: Some(5.0) };
+    let coord2 = GeoCoordinate {
+        lat: -90.0,
+        lon: -180.0,
+        accuracy: Some(5.0),
+    };
     assert!(coord2.lat.abs() <= 90.0);
     assert!(coord2.lon.abs() <= 180.0);
 
-    let coord3 = GeoCoordinate { lat: 90.0, lon: 180.0, accuracy: Some(0.1) };
+    let coord3 = GeoCoordinate {
+        lat: 90.0,
+        lon: 180.0,
+        accuracy: Some(0.1),
+    };
     assert!(coord3.lat.abs() <= 90.0);
     assert!(coord3.lon.abs() <= 180.0);
 }

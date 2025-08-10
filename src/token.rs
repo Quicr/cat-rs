@@ -1,4 +1,6 @@
-use crate::{CatError, CatToken, Cwt, CwtHeader, CryptographicAlgorithm, UriPattern, NetworkIdentifier};
+use crate::{
+    CatError, CatToken, CryptographicAlgorithm, Cwt, CwtHeader, NetworkIdentifier, UriPattern,
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use std::collections::HashSet;
@@ -35,7 +37,7 @@ impl CatTokenValidator {
 
     pub fn validate(&self, token: &CatToken) -> Result<(), CatError> {
         let now = Utc::now().timestamp();
-        
+
         if let Some(exp) = token.core.exp {
             if now > exp + self.clock_skew_tolerance {
                 return Err(CatError::TokenExpired);
@@ -78,7 +80,7 @@ impl CatTokenValidator {
         if let Some(ref coords) = token.cat.catgeocoord {
             if coords.lat.abs() > 90.0 || coords.lon.abs() > 180.0 {
                 return Err(CatError::GeographicValidationFailed(
-                    "Invalid coordinates".to_string()
+                    "Invalid coordinates".to_string(),
                 ));
             }
         }
@@ -86,7 +88,7 @@ impl CatTokenValidator {
         if let Some(ref geohash) = token.cat.geohash {
             if geohash.is_empty() || geohash.len() > 12 {
                 return Err(CatError::GeographicValidationFailed(
-                    "Invalid geohash".to_string()
+                    "Invalid geohash".to_string(),
                 ));
             }
         }
@@ -240,7 +242,7 @@ pub fn encode_token(
     algorithm: &dyn CryptographicAlgorithm,
 ) -> Result<String, CatError> {
     let cwt = Cwt::new(algorithm.algorithm_id(), token.clone());
-    
+
     let header = CwtHeader {
         alg: algorithm.algorithm_id(),
         kid: cwt.header.kid.clone(),
@@ -269,7 +271,7 @@ pub fn encode_token(
     };
 
     let payload_cbor = cwt.encode_payload()?;
-    
+
     let signing_input = crate::crypto::create_signing_input(&header_cbor, &payload_cbor);
     let signature = algorithm.sign(&signing_input)?;
 
@@ -289,15 +291,18 @@ pub fn decode_token(
         return Err(CatError::InvalidTokenFormat);
     }
 
-    let header_cbor = URL_SAFE_NO_PAD.decode(parts[0])
+    let header_cbor = URL_SAFE_NO_PAD
+        .decode(parts[0])
         .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
-    let payload_cbor = URL_SAFE_NO_PAD.decode(parts[1])
+    let payload_cbor = URL_SAFE_NO_PAD
+        .decode(parts[1])
         .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
-    let signature = URL_SAFE_NO_PAD.decode(parts[2])
+    let signature = URL_SAFE_NO_PAD
+        .decode(parts[2])
         .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
 
     let signing_input = crate::crypto::create_signing_input(&header_cbor, &payload_cbor);
-    
+
     if !algorithm.verify(&signing_input, &signature)? {
         return Err(CatError::SignatureVerificationFailed);
     }

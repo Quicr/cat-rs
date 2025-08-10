@@ -1,11 +1,11 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use cat_impl::*;
-use chrono::{Utc, Duration};
+use chrono::{Duration, Utc};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_simple_token() -> CatToken {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     CatToken::new()
         .with_issuer("https://auth.example.com")
         .with_audience(vec!["client1".to_string(), "client2".to_string()])
@@ -21,7 +21,7 @@ fn create_complex_token() -> CatToken {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
     let iat = now - Duration::minutes(1);
-    
+
     let uri_patterns = vec![
         UriPattern::Exact("https://api.example.com".to_string()),
         UriPattern::Prefix("https://secure.".to_string()),
@@ -29,7 +29,7 @@ fn create_complex_token() -> CatToken {
         UriPattern::Regex(r"^https://.*\.test\.com$".to_string()),
         UriPattern::Hash("abcdef123456".to_string()),
     ];
-    
+
     CatToken::new()
         .with_issuer("https://auth.example.com")
         .with_audience(vec![
@@ -62,66 +62,54 @@ fn create_complex_token() -> CatToken {
 
 fn bench_token_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("token_creation");
-    
+
     group.bench_function("simple_token", |b| {
-        b.iter(|| {
-            black_box(create_simple_token())
-        })
+        b.iter(|| black_box(create_simple_token()))
     });
-    
+
     group.bench_function("complex_token", |b| {
-        b.iter(|| {
-            black_box(create_complex_token())
-        })
+        b.iter(|| black_box(create_complex_token()))
     });
-    
+
     group.finish();
 }
 
 fn bench_token_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("token_validation");
-    
+
     let simple_token = create_simple_token();
     let complex_token = create_complex_token();
-    
+
     let validator = CatTokenValidator::new()
         .with_expected_issuers(vec!["https://auth.example.com".to_string()])
         .with_expected_audiences(vec!["client1".to_string(), "client2".to_string()])
         .with_clock_skew_tolerance(60);
-    
+
     group.bench_function("simple_token_validation", |b| {
-        b.iter(|| {
-            black_box(validator.validate(&simple_token)).ok()
-        })
+        b.iter(|| black_box(validator.validate(&simple_token)).ok())
     });
-    
+
     group.bench_function("complex_token_validation", |b| {
-        b.iter(|| {
-            black_box(validator.validate(&complex_token)).ok()
-        })
+        b.iter(|| black_box(validator.validate(&complex_token)).ok())
     });
-    
+
     group.finish();
 }
 
 fn bench_token_cloning(c: &mut Criterion) {
     let mut group = c.benchmark_group("token_cloning");
-    
+
     let simple_token = create_simple_token();
     let complex_token = create_complex_token();
-    
+
     group.bench_function("simple_token_clone", |b| {
-        b.iter(|| {
-            black_box(simple_token.clone())
-        })
+        b.iter(|| black_box(simple_token.clone()))
     });
-    
+
     group.bench_function("complex_token_clone", |b| {
-        b.iter(|| {
-            black_box(complex_token.clone())
-        })
+        b.iter(|| black_box(complex_token.clone()))
     });
-    
+
     group.finish();
 }
 

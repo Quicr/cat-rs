@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrieNode {
@@ -34,17 +34,18 @@ impl PrefixTrie {
 
     pub fn insert(&mut self, pattern: &str, value: String) {
         let mut current = &mut self.root;
-        
+
         for ch in pattern.chars() {
-            current = current.children
+            current = current
+                .children
                 .entry(ch)
                 .or_insert_with(|| Box::new(TrieNode::new()));
         }
-        
+
         if !current.is_terminal {
             self.size += 1;
         }
-        
+
         current.is_terminal = true;
         current.value = Some(value);
     }
@@ -53,11 +54,11 @@ impl PrefixTrie {
         let mut matches = Vec::new();
         let mut current = &self.root;
         let chars: Vec<char> = text.chars().collect();
-        
+
         for (_i, &ch) in chars.iter().enumerate() {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
-                
+
                 if current.is_terminal {
                     if let Some(ref value) = current.value {
                         matches.push(value.as_str());
@@ -67,13 +68,13 @@ impl PrefixTrie {
                 break;
             }
         }
-        
+
         matches
     }
 
     pub fn contains_prefix(&self, text: &str) -> bool {
         let mut current = &self.root;
-        
+
         for ch in text.chars() {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
@@ -84,7 +85,7 @@ impl PrefixTrie {
                 return false;
             }
         }
-        
+
         current.is_terminal
     }
 
@@ -98,7 +99,7 @@ impl PrefixTrie {
         if node.is_terminal {
             patterns.push(prefix.clone());
         }
-        
+
         for (ch, child) in &node.children {
             let mut new_prefix = prefix.clone();
             new_prefix.push(*ch);
@@ -125,10 +126,10 @@ impl PrefixTrie {
         }
 
         let ch = pattern.chars().nth(index).unwrap();
-        
+
         if let Some(mut child) = node.children.remove(&ch) {
             let child_removed = Self::remove_recursive_static(&mut child, pattern, index + 1);
-            
+
             if child_removed {
                 if !child.is_terminal && child.children.is_empty() {
                     // Don't reinsert the child, it should be deleted
@@ -144,7 +145,7 @@ impl PrefixTrie {
                 node.children.insert(ch, child);
             }
         }
-        
+
         false
     }
 }
@@ -166,17 +167,18 @@ impl SuffixTrie {
     pub fn insert(&mut self, pattern: &str, value: String) {
         let reversed: String = pattern.chars().rev().collect();
         let mut current = &mut self.root;
-        
+
         for ch in reversed.chars() {
-            current = current.children
+            current = current
+                .children
                 .entry(ch)
                 .or_insert_with(|| Box::new(TrieNode::new()));
         }
-        
+
         if !current.is_terminal {
             self.size += 1;
         }
-        
+
         current.is_terminal = true;
         current.value = Some(value);
     }
@@ -185,11 +187,11 @@ impl SuffixTrie {
         let mut matches = Vec::new();
         let reversed: String = text.chars().rev().collect();
         let mut current = &self.root;
-        
+
         for ch in reversed.chars() {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
-                
+
                 if current.is_terminal {
                     if let Some(ref value) = current.value {
                         matches.push(value.as_str());
@@ -199,14 +201,14 @@ impl SuffixTrie {
                 break;
             }
         }
-        
+
         matches
     }
 
     pub fn contains_suffix(&self, text: &str) -> bool {
         let reversed: String = text.chars().rev().collect();
         let mut current = &self.root;
-        
+
         for ch in reversed.chars() {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
@@ -217,21 +219,24 @@ impl SuffixTrie {
                 return false;
             }
         }
-        
+
         current.is_terminal
     }
 
     pub fn get_all_patterns(&self) -> Vec<String> {
         let mut patterns = Vec::new();
         self.collect_patterns(&self.root, String::new(), &mut patterns);
-        patterns.into_iter().map(|p| p.chars().rev().collect()).collect()
+        patterns
+            .into_iter()
+            .map(|p| p.chars().rev().collect())
+            .collect()
     }
 
     fn collect_patterns(&self, node: &TrieNode, prefix: String, patterns: &mut Vec<String>) {
         if node.is_terminal {
             patterns.push(prefix.clone());
         }
-        
+
         for (ch, child) in &node.children {
             let mut new_prefix = prefix.clone();
             new_prefix.push(*ch);
@@ -259,10 +264,10 @@ impl SuffixTrie {
         }
 
         let ch = pattern.chars().nth(index).unwrap();
-        
+
         if let Some(mut child) = node.children.remove(&ch) {
             let child_removed = Self::remove_recursive_static(&mut child, pattern, index + 1);
-            
+
             if child_removed {
                 if !child.is_terminal && child.children.is_empty() {
                     // Don't reinsert the child, it should be deleted
@@ -278,7 +283,7 @@ impl SuffixTrie {
                 node.children.insert(ch, child);
             }
         }
-        
+
         false
     }
 }
@@ -302,7 +307,10 @@ impl UriMatcher {
         }
     }
 
-    pub fn add_pattern(&mut self, pattern: crate::claims::UriPattern) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_pattern(
+        &mut self,
+        pattern: crate::claims::UriPattern,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         match pattern {
             crate::claims::UriPattern::Exact(uri) => {
                 let key = uri.clone();
@@ -403,7 +411,7 @@ mod tests {
     #[test]
     fn test_prefix_trie_basic_operations() {
         let mut trie = PrefixTrie::new();
-        
+
         trie.insert("hello", "greeting".to_string());
         trie.insert("help", "assistance".to_string());
         trie.insert("world", "earth".to_string());
@@ -411,7 +419,7 @@ mod tests {
         assert!(trie.contains_prefix("hello"));
         assert!(trie.contains_prefix("help"));
         assert!(!trie.contains_prefix("he"));
-        
+
         let matches = trie.search_prefix("hello world");
         assert!(matches.contains(&"greeting"));
     }
@@ -419,7 +427,7 @@ mod tests {
     #[test]
     fn test_suffix_trie_basic_operations() {
         let mut trie = SuffixTrie::new();
-        
+
         trie.insert(".com", "commercial".to_string());
         trie.insert(".org", "organization".to_string());
         trie.insert("ing", "gerund".to_string());
@@ -427,7 +435,7 @@ mod tests {
         assert!(trie.contains_suffix("example.com"));
         assert!(trie.contains_suffix("running"));
         assert!(!trie.contains_suffix("example"));
-        
+
         let matches = trie.search_suffix("programming");
         assert!(matches.contains(&"gerund"));
     }
@@ -435,10 +443,20 @@ mod tests {
     #[test]
     fn test_uri_matcher() {
         let mut matcher = UriMatcher::new();
-        
-        matcher.add_pattern(crate::claims::UriPattern::Exact("https://example.com".to_string())).unwrap();
-        matcher.add_pattern(crate::claims::UriPattern::Prefix("https://api.".to_string())).unwrap();
-        matcher.add_pattern(crate::claims::UriPattern::Suffix(".json".to_string())).unwrap();
+
+        matcher
+            .add_pattern(crate::claims::UriPattern::Exact(
+                "https://example.com".to_string(),
+            ))
+            .unwrap();
+        matcher
+            .add_pattern(crate::claims::UriPattern::Prefix(
+                "https://api.".to_string(),
+            ))
+            .unwrap();
+        matcher
+            .add_pattern(crate::claims::UriPattern::Suffix(".json".to_string()))
+            .unwrap();
 
         assert!(matcher.matches("https://example.com"));
         assert!(matcher.matches("https://api.service.com"));

@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 fn test_cat_token_creation() {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://example.com")
         .audience(vec!["https://api.example.com".to_string()])
@@ -21,14 +21,17 @@ fn test_cat_token_creation() {
         .build();
 
     assert_eq!(token.core.iss, Some("https://example.com".to_string()));
-    assert_eq!(token.core.aud, Some(vec!["https://api.example.com".to_string()]));
+    assert_eq!(
+        token.core.aud,
+        Some(vec!["https://api.example.com".to_string()])
+    );
     assert_eq!(token.core.cti, Some("test-token-id".to_string()));
     assert_eq!(token.cat.catv, Some("1.0".to_string()));
     assert_eq!(token.cat.catu, Some(100));
     assert_eq!(token.cat.catreplay, Some("nonce-12345".to_string()));
     assert_eq!(token.cat.catpor, Some(true));
     assert_eq!(token.cat.geohash, Some("9q8yy".to_string()));
-    
+
     if let Some(coords) = &token.cat.catgeocoord {
         assert_eq!(coords.lat, 37.7749);
         assert_eq!(coords.lon, -122.4194);
@@ -42,10 +45,10 @@ fn test_cat_token_creation() {
 fn test_hmac_token_encoding_decoding() {
     let key = HmacSha256Algorithm::generate_key();
     let algorithm = HmacSha256Algorithm::new(&key);
-    
+
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://test.com")
         .audience(vec!["https://api.test.com".to_string()])
@@ -68,10 +71,10 @@ fn test_hmac_token_encoding_decoding() {
 #[test]
 fn test_es256_token_encoding_decoding() {
     let algorithm = Es256Algorithm::new_with_key_pair().unwrap();
-    
+
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://test.com")
         .audience(vec!["https://api.test.com".to_string()])
@@ -94,10 +97,10 @@ fn test_es256_token_encoding_decoding() {
 #[test]
 fn test_ps256_token_encoding_decoding() {
     let algorithm = Ps256Algorithm::new_with_key_pair().unwrap();
-    
+
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://test.com")
         .audience(vec!["https://api.test.com".to_string()])
@@ -121,7 +124,7 @@ fn test_ps256_token_encoding_decoding() {
 fn test_token_validation_success() {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://trusted-issuer.com")
         .audience(vec!["https://my-service.com".to_string()])
@@ -145,7 +148,7 @@ fn test_token_validation_success() {
 fn test_token_validation_expired() {
     let now = Utc::now();
     let exp = now - Duration::hours(1); // Expired 1 hour ago
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://trusted-issuer.com")
         .audience(vec!["https://my-service.com".to_string()])
@@ -166,7 +169,7 @@ fn test_token_validation_not_yet_valid() {
     let now = Utc::now();
     let nbf = now + Duration::hours(1); // Valid starting 1 hour from now
     let exp = now + Duration::hours(2);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://trusted-issuer.com")
         .audience(vec!["https://my-service.com".to_string()])
@@ -187,7 +190,7 @@ fn test_token_validation_not_yet_valid() {
 fn test_token_validation_invalid_issuer() {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://untrusted-issuer.com")
         .audience(vec!["https://my-service.com".to_string()])
@@ -207,7 +210,7 @@ fn test_token_validation_invalid_issuer() {
 fn test_token_validation_invalid_audience() {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://trusted-issuer.com")
         .audience(vec!["https://other-service.com".to_string()])
@@ -227,7 +230,7 @@ fn test_token_validation_invalid_audience() {
 fn test_cwt_payload_encoding_decoding() {
     let now = Utc::now();
     let exp = now + Duration::hours(1);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://example.com")
         .audience(vec!["https://api.example.com".to_string()])
@@ -254,9 +257,10 @@ fn test_cwt_payload_encoding_decoding() {
     assert_eq!(decoded_token.cat.catreplay, token.cat.catreplay);
     assert_eq!(decoded_token.cat.catpor, token.cat.catpor);
     assert_eq!(decoded_token.cat.geohash, token.cat.geohash);
-    
-    if let (Some(orig_coords), Some(decoded_coords)) = 
-        (&token.cat.catgeocoord, &decoded_token.cat.catgeocoord) {
+
+    if let (Some(orig_coords), Some(decoded_coords)) =
+        (&token.cat.catgeocoord, &decoded_token.cat.catgeocoord)
+    {
         assert_eq!(orig_coords.lat, decoded_coords.lat);
         assert_eq!(orig_coords.lon, decoded_coords.lon);
         assert_eq!(orig_coords.accuracy, decoded_coords.accuracy);
@@ -353,14 +357,14 @@ fn test_invalid_signature_verification() {
     let key2 = HmacSha256Algorithm::generate_key();
     let algorithm1 = HmacSha256Algorithm::new(&key1);
     let algorithm2 = HmacSha256Algorithm::new(&key2);
-    
+
     let token = CatTokenBuilder::new()
         .issuer("https://test.com")
         .cwt_id("signature-test")
         .build();
 
     let encoded = encode_token(&token, &algorithm1).unwrap();
-    
+
     // Try to verify with different key - should fail
     let result = decode_token(&encoded, &algorithm2);
     assert!(matches!(result, Err(CatError::SignatureVerificationFailed)));
@@ -370,14 +374,14 @@ fn test_invalid_signature_verification() {
 fn test_invalid_token_format() {
     let key = HmacSha256Algorithm::generate_key();
     let algorithm = HmacSha256Algorithm::new(&key);
-    
+
     // Test with wrong number of parts
     let result = decode_token("invalid", &algorithm);
     assert!(matches!(result, Err(CatError::InvalidTokenFormat)));
-    
+
     let result = decode_token("too.few", &algorithm);
     assert!(matches!(result, Err(CatError::InvalidTokenFormat)));
-    
+
     let result = decode_token("too.many.parts.here", &algorithm);
     assert!(matches!(result, Err(CatError::InvalidTokenFormat)));
 }
@@ -385,7 +389,7 @@ fn test_invalid_token_format() {
 #[test]
 fn test_geographic_validation() {
     let validator = CatTokenValidator::new();
-    
+
     // Test invalid coordinates
     let mut token = CatToken::new();
     token.cat.catgeocoord = Some(GeoCoordinate {
@@ -393,14 +397,20 @@ fn test_geographic_validation() {
         lon: 0.0,
         accuracy: None,
     });
-    
+
     let result = validator.validate(&token);
-    assert!(matches!(result, Err(CatError::GeographicValidationFailed(_))));
-    
+    assert!(matches!(
+        result,
+        Err(CatError::GeographicValidationFailed(_))
+    ));
+
     // Test invalid geohash
     token.cat.catgeocoord = None;
     token.cat.geohash = Some("".to_string()); // Empty geohash
-    
+
     let result = validator.validate(&token);
-    assert!(matches!(result, Err(CatError::GeographicValidationFailed(_))));
+    assert!(matches!(
+        result,
+        Err(CatError::GeographicValidationFailed(_))
+    ));
 }

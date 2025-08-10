@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 pub const CLAIM_ISS: i64 = 1;
 pub const CLAIM_AUD: i64 = 3;
@@ -103,7 +103,6 @@ pub enum NetworkIdentifier {
     Asn(u32),
     AsnRange(u32, u32),
 }
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatToken {

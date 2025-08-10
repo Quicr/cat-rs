@@ -1,13 +1,13 @@
 use crate::CatError;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac};
 use p256::ecdsa::{Signature, SigningKey, VerifyingKey};
 use p256::elliptic_curve::rand_core::OsRng;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use ring::{digest, rand};
 use ring::rand::SecureRandom;
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use ring::{digest, rand};
 use rsa::pkcs1v15::{SigningKey as RsaSigningKey, VerifyingKey as RsaVerifyingKey};
-use rsa::signature::{RandomizedSigner, Verifier, Signer, SignatureEncoding};
+use rsa::signature::{RandomizedSigner, SignatureEncoding, Signer, Verifier};
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 
 pub const ALG_HMAC256_256: i64 = -4;
@@ -28,9 +28,7 @@ pub struct HmacSha256Algorithm {
 
 impl HmacSha256Algorithm {
     pub fn new(key: &[u8]) -> Self {
-        Self {
-            key: key.to_vec(),
-        }
+        Self { key: key.to_vec() }
     }
 
     pub fn generate_key() -> Vec<u8> {
@@ -53,7 +51,7 @@ impl CryptographicAlgorithm for HmacSha256Algorithm {
         let mut mac = HmacSha256::new_from_slice(&self.key)
             .map_err(|e| CatError::CryptoError(e.to_string()))?;
         mac.update(data);
-        
+
         mac.verify_slice(signature)
             .map(|_| true)
             .map_err(|_| CatError::SignatureVerificationFailed)
@@ -73,7 +71,7 @@ impl Es256Algorithm {
     pub fn new_with_key_pair() -> Result<Self, CatError> {
         let signing_key = SigningKey::random(&mut OsRng);
         let verifying_key = VerifyingKey::from(&signing_key);
-        
+
         Ok(Self {
             signing_key: Some(signing_key),
             verifying_key,
@@ -94,18 +92,21 @@ impl Es256Algorithm {
 
 impl CryptographicAlgorithm for Es256Algorithm {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, CatError> {
-        let signing_key = self.signing_key.as_ref()
+        let signing_key = self
+            .signing_key
+            .as_ref()
             .ok_or_else(|| CatError::CryptoError("No signing key available".to_string()))?;
-        
+
         let signature: Signature = signing_key.sign(data);
         Ok(signature.to_bytes().to_vec())
     }
 
     fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool, CatError> {
-        let signature = Signature::try_from(signature)
-            .map_err(|e| CatError::CryptoError(e.to_string()))?;
-        
-        self.verifying_key.verify(data, &signature)
+        let signature =
+            Signature::try_from(signature).map_err(|e| CatError::CryptoError(e.to_string()))?;
+
+        self.verifying_key
+            .verify(data, &signature)
             .map(|_| true)
             .map_err(|_| CatError::SignatureVerificationFailed)
     }
@@ -126,7 +127,7 @@ impl Ps256Algorithm {
         let private_key = RsaPrivateKey::new(&mut OsRng, bits)
             .map_err(|e| CatError::CryptoError(e.to_string()))?;
         let public_key = RsaPublicKey::from(&private_key);
-        
+
         Ok(Self {
             private_key: Some(private_key),
             public_key,
@@ -147,12 +148,14 @@ impl Ps256Algorithm {
 
 impl CryptographicAlgorithm for Ps256Algorithm {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, CatError> {
-        let private_key = self.private_key.as_ref()
+        let private_key = self
+            .private_key
+            .as_ref()
             .ok_or_else(|| CatError::CryptoError("No private key available".to_string()))?;
-        
+
         let signing_key = RsaSigningKey::<Sha256>::new(private_key.clone());
         let signature = signing_key.sign_with_rng(&mut OsRng, data);
-        
+
         Ok(signature.to_bytes().to_vec())
     }
 
@@ -160,8 +163,9 @@ impl CryptographicAlgorithm for Ps256Algorithm {
         let verifying_key = RsaVerifyingKey::<Sha256>::new(self.public_key.clone());
         let signature = rsa::pkcs1v15::Signature::try_from(signature)
             .map_err(|e| CatError::CryptoError(e.to_string()))?;
-        
-        verifying_key.verify(data, &signature)
+
+        verifying_key
+            .verify(data, &signature)
             .map(|_| true)
             .map_err(|_| CatError::SignatureVerificationFailed)
     }

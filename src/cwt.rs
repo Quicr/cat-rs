@@ -1,5 +1,5 @@
-use crate::{CatError, CatToken, CoreClaims, CatClaims, GeoCoordinate};
 use crate::claims::*;
+use crate::{CatClaims, CatError, CatToken, CoreClaims, GeoCoordinate};
 use ciborium::Value;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -73,27 +73,39 @@ impl Cwt {
         }
 
         if let Some(ref catnip) = self.payload.cat.catnip {
-            let nip_values: Vec<Value> = catnip.iter().map(|nip| {
-                match nip {
+            let nip_values: Vec<Value> = catnip
+                .iter()
+                .map(|nip| match nip {
                     NetworkIdentifier::IpAddress(ip) => Value::Text(ip.clone()),
                     NetworkIdentifier::IpRange(range) => {
                         let mut nip_map = Vec::new();
-                        nip_map.push((Value::Text("ip_range".to_string()), Value::Text(range.clone())));
+                        nip_map.push((
+                            Value::Text("ip_range".to_string()),
+                            Value::Text(range.clone()),
+                        ));
                         Value::Map(nip_map)
-                    },
+                    }
                     NetworkIdentifier::Asn(asn) => {
                         let mut nip_map = Vec::new();
-                        nip_map.push((Value::Text("asn".to_string()), Value::Integer((*asn).into())));
+                        nip_map.push((
+                            Value::Text("asn".to_string()),
+                            Value::Integer((*asn).into()),
+                        ));
                         Value::Map(nip_map)
-                    },
+                    }
                     NetworkIdentifier::AsnRange(start, end) => {
                         let mut nip_map = Vec::new();
-                        nip_map.push((Value::Text("asn_range".to_string()), 
-                                     Value::Array(vec![Value::Integer((*start).into()), Value::Integer((*end).into())])));
+                        nip_map.push((
+                            Value::Text("asn_range".to_string()),
+                            Value::Array(vec![
+                                Value::Integer((*start).into()),
+                                Value::Integer((*end).into()),
+                            ]),
+                        ));
                         Value::Map(nip_map)
-                    },
-                }
-            }).collect();
+                    }
+                })
+                .collect();
             claims_map.insert(CLAIM_CATNIP, Value::Array(nip_values));
         }
 
@@ -111,43 +123,56 @@ impl Cwt {
         }
 
         if let Some(ref cath) = self.payload.cat.cath {
-            let pattern_values: Vec<Value> = cath.iter().map(|pattern| {
-                match pattern {
+            let pattern_values: Vec<Value> = cath
+                .iter()
+                .map(|pattern| match pattern {
                     UriPattern::Exact(s) => Value::Text(s.clone()),
                     UriPattern::Prefix(s) => {
                         let mut pattern_map = Vec::new();
-                        pattern_map.push((Value::Text("prefix".to_string()), Value::Text(s.clone())));
+                        pattern_map
+                            .push((Value::Text("prefix".to_string()), Value::Text(s.clone())));
                         Value::Map(pattern_map)
-                    },
+                    }
                     UriPattern::Suffix(s) => {
                         let mut pattern_map = Vec::new();
-                        pattern_map.push((Value::Text("suffix".to_string()), Value::Text(s.clone())));
+                        pattern_map
+                            .push((Value::Text("suffix".to_string()), Value::Text(s.clone())));
                         Value::Map(pattern_map)
-                    },
+                    }
                     UriPattern::Regex(s) => {
                         let mut pattern_map = Vec::new();
-                        pattern_map.push((Value::Text("regex".to_string()), Value::Text(s.clone())));
+                        pattern_map
+                            .push((Value::Text("regex".to_string()), Value::Text(s.clone())));
                         Value::Map(pattern_map)
-                    },
+                    }
                     UriPattern::Hash(s) => {
                         let mut pattern_map = Vec::new();
                         pattern_map.push((Value::Text("hash".to_string()), Value::Text(s.clone())));
                         Value::Map(pattern_map)
-                    },
-                }
-            }).collect();
+                    }
+                })
+                .collect();
             claims_map.insert(CLAIM_CATH, Value::Array(pattern_values));
         }
 
         if let Some(ref catgeoiso3166) = self.payload.cat.catgeoiso3166 {
-            let geo_values: Vec<Value> = catgeoiso3166.iter().map(|g| Value::Text(g.clone())).collect();
+            let geo_values: Vec<Value> = catgeoiso3166
+                .iter()
+                .map(|g| Value::Text(g.clone()))
+                .collect();
             claims_map.insert(CLAIM_CATGEOISO3166, Value::Array(geo_values));
         }
 
         if let Some(ref catgeocoord) = self.payload.cat.catgeocoord {
             let mut coord_map = Vec::new();
-            coord_map.push((Value::Text("lat".to_string()), Value::Float(catgeocoord.lat)));
-            coord_map.push((Value::Text("lon".to_string()), Value::Float(catgeocoord.lon)));
+            coord_map.push((
+                Value::Text("lat".to_string()),
+                Value::Float(catgeocoord.lat),
+            ));
+            coord_map.push((
+                Value::Text("lon".to_string()),
+                Value::Float(catgeocoord.lon),
+            ));
             if let Some(accuracy) = catgeocoord.accuracy {
                 coord_map.push((Value::Text("accuracy".to_string()), Value::Float(accuracy)));
             }
@@ -297,17 +322,15 @@ impl Cwt {
                         core.nbf = Some(i.try_into().map_err(|_| CatError::InvalidTokenFormat)?);
                     }
                 }
-                CLAIM_CTI => {
-                    match value {
-                        Value::Bytes(b) => {
-                            core.cti = Some(String::from_utf8_lossy(&b).to_string());
-                        }
-                        Value::Text(s) => {
-                            core.cti = Some(s);
-                        }
-                        _ => {}
+                CLAIM_CTI => match value {
+                    Value::Bytes(b) => {
+                        core.cti = Some(String::from_utf8_lossy(&b).to_string());
                     }
-                }
+                    Value::Text(s) => {
+                        core.cti = Some(s);
+                    }
+                    _ => {}
+                },
                 CLAIM_CATREPLAY => {
                     if let Value::Text(s) = value {
                         cat.catreplay = Some(s);
@@ -330,40 +353,61 @@ impl Cwt {
                             match item {
                                 Value::Text(s) => {
                                     nips.push(NetworkIdentifier::IpAddress(s));
-                                },
+                                }
                                 Value::Map(map) => {
                                     for (k, v) in map {
                                         if let Value::Text(key_str) = k {
                                             match key_str.as_str() {
                                                 "ip_range" => {
                                                     if let Value::Text(range) = v {
-                                                        nips.push(NetworkIdentifier::IpRange(range));
+                                                        nips.push(NetworkIdentifier::IpRange(
+                                                            range,
+                                                        ));
                                                     }
-                                                },
+                                                }
                                                 "asn" => {
                                                     if let Value::Integer(asn) = v {
-                                                        if let Ok(asn_u32) = TryInto::<u32>::try_into(asn) {
-                                                            nips.push(NetworkIdentifier::Asn(asn_u32));
+                                                        if let Ok(asn_u32) =
+                                                            TryInto::<u32>::try_into(asn)
+                                                        {
+                                                            nips.push(NetworkIdentifier::Asn(
+                                                                asn_u32,
+                                                            ));
                                                         }
                                                     }
-                                                },
+                                                }
                                                 "asn_range" => {
                                                     if let Value::Array(range_arr) = v {
                                                         if range_arr.len() == 2 {
-                                                            if let (Value::Integer(start), Value::Integer(end)) = (&range_arr[0], &range_arr[1]) {
-                                                                if let (Ok(start_u32), Ok(end_u32)) = 
-                                                                    (TryInto::<u32>::try_into(*start), TryInto::<u32>::try_into(*end)) {
-                                                                    nips.push(NetworkIdentifier::AsnRange(start_u32, end_u32));
+                                                            if let (
+                                                                Value::Integer(start),
+                                                                Value::Integer(end),
+                                                            ) = (&range_arr[0], &range_arr[1])
+                                                            {
+                                                                if let (
+                                                                    Ok(start_u32),
+                                                                    Ok(end_u32),
+                                                                ) = (
+                                                                    TryInto::<u32>::try_into(
+                                                                        *start,
+                                                                    ),
+                                                                    TryInto::<u32>::try_into(*end),
+                                                                ) {
+                                                                    nips.push(
+                                                                        NetworkIdentifier::AsnRange(
+                                                                            start_u32, end_u32,
+                                                                        ),
+                                                                    );
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                },
+                                                }
                                                 _ => {}
                                             }
                                         }
                                     }
-                                },
+                                }
                                 _ => {}
                             }
                         }
@@ -399,13 +443,25 @@ impl Cwt {
                                 patterns.push(UriPattern::Exact(s));
                             } else if let Value::Map(pattern_map) = item {
                                 if let Some((key, val)) = pattern_map.into_iter().next() {
-                                    if let (Value::Text(pattern_type), Value::Text(pattern_value)) = (key, val) {
+                                    if let (Value::Text(pattern_type), Value::Text(pattern_value)) =
+                                        (key, val)
+                                    {
                                         match pattern_type.as_str() {
-                                            "exact" => patterns.push(UriPattern::Exact(pattern_value)),
-                                            "prefix" => patterns.push(UriPattern::Prefix(pattern_value)),
-                                            "suffix" => patterns.push(UriPattern::Suffix(pattern_value)),
-                                            "regex" => patterns.push(UriPattern::Regex(pattern_value)),
-                                            "hash" => patterns.push(UriPattern::Hash(pattern_value)),
+                                            "exact" => {
+                                                patterns.push(UriPattern::Exact(pattern_value))
+                                            }
+                                            "prefix" => {
+                                                patterns.push(UriPattern::Prefix(pattern_value))
+                                            }
+                                            "suffix" => {
+                                                patterns.push(UriPattern::Suffix(pattern_value))
+                                            }
+                                            "regex" => {
+                                                patterns.push(UriPattern::Regex(pattern_value))
+                                            }
+                                            "hash" => {
+                                                patterns.push(UriPattern::Hash(pattern_value))
+                                            }
                                             _ => {}
                                         }
                                     }
@@ -467,7 +523,8 @@ impl Cwt {
                 }
                 CLAIM_CATGEOALT => {
                     if let Value::Integer(i) = value {
-                        cat.catgeoalt = Some(i.try_into().map_err(|_| CatError::InvalidTokenFormat)?);
+                        cat.catgeoalt =
+                            Some(i.try_into().map_err(|_| CatError::InvalidTokenFormat)?);
                     }
                 }
                 CLAIM_CATTPK => {
@@ -482,7 +539,8 @@ impl Cwt {
                 }
                 CLAIM_IAT => {
                     if let Value::Integer(i) = value {
-                        informational.iat = Some(i.try_into().map_err(|_| CatError::InvalidTokenFormat)?);
+                        informational.iat =
+                            Some(i.try_into().map_err(|_| CatError::InvalidTokenFormat)?);
                     }
                 }
                 CLAIM_CATIFDATA => {
@@ -516,6 +574,13 @@ impl Cwt {
             }
         }
 
-        Ok(CatToken { core, cat, informational, dpop, request, custom })
+        Ok(CatToken {
+            core,
+            cat,
+            informational,
+            dpop,
+            request,
+            custom,
+        })
     }
 }
