@@ -4,17 +4,17 @@
 
 This project provides implementation of Common Access Tokens (CAT) as defined in the CTA-5007-B specification. CAT tokens use CBOR Web Token (CWT) format with CBOR encoding and base64URL transport encoding.
 
-## ✨ Features
+## Features
 
-### 🦀 **Rust Implementation **
-- **Full CTA-5007-B compliance** with all 13 CAT-specific claims
-- **Core CWT claims**: `iss`, `aud`, `exp`, `nbf`, `cti`
-- **CAT-specific claims**: `catreplay`, `catpor`, `catv`, `catnip`, `catu`, `catm`, `catalpn`, `cath`, `catgeoiso3166`, `catgeocoord`, `geohash`, `catgeoalt`, `cattpk`
-- **Cryptographic algorithms**: HMAC256/256, ES256 (ECDSA P-256), PS256 (RSA-PSS)
-- **CBOR Web Token encoding/decoding**
-- **Base64URL transport encoding**
-- **Comprehensive validation**: time-based, geographic, audience/issuer verification
-- **CLI tool** for token generation and verification
+### Rust Implementation
+- Full CTA-5007-B compliance with all 13 CAT-specific claims
+- Core CWT claims: `iss`, `aud`, `exp`, `nbf`, `cti`
+- CAT-specific claims: `catreplay`, `catpor`, `catv`, `catnip`, `catu`, `catm`, `catalpn`, `cath`, `catgeoiso3166`, `catgeocoord`, `geohash`, `catgeoalt`, `cattpk`
+- Cryptographic algorithms: HMAC256/256, ES256 (ECDSA P-256), PS256 (RSA-PSS)
+- CBOR Web Token encoding/decoding
+- Base64URL transport encoding
+- Comprehensive validation: time-based, geographic, audience/issuer verification
+- CLI tool for token generation and verification
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ This project provides implementation of Common Access Tokens (CAT) as defined in
 
 ### Installation
 
-#### **Using the Makefile (Recommended)**
+#### Using the Makefile (Recommended)
 
 ```bash
 # Build everything
@@ -38,7 +38,7 @@ make test
 make examples
 ```
 
-#### **Rust Only**
+#### Rust Only
 
 ```bash
 # Build
@@ -56,7 +56,7 @@ cargo run --bin cat-cli generate-hmac
 ###  API
 
 ```rust
-use cat_impl::*;
+use cat_impl::;
 use chrono::{Duration, Utc};
 
 // Create a CAT token
@@ -92,36 +92,36 @@ let validator = CatTokenValidator::new()
 validator.validate(&decoded_token)?;
 ```
 
-## 📋 CAT Claims Support
+##  CAT Claims Support
 
 ### Core CWT Claims
-- **`iss` (Issuer)** - Token issuer identifier
-- **`aud` (Audience)** - Intended token recipients
-- **`exp` (Expiration)** - Token expiration time
-- **`nbf` (Not Before)** - Token validity start time
-- **`cti` (CWT ID)** - Unique token identifier
+- `iss` (Issuer) - Token issuer identifier
+- `aud` (Audience) - Intended token recipients
+- `exp` (Expiration) - Token expiration time
+- `nbf` (Not Before) - Token validity start time
+- `cti` (CWT ID) - Unique token identifier
 
 ### CAT-Specific Claims
-- **`catreplay`** - Replay attack protection nonce
-- **`catpor`** - Proof of possession flag
-- **`catv`** - CAT version
-- **`catnip`** - Network interface restrictions
-- **`catu`** - Usage limit counter
-- **`catm`** - HTTP method restrictions
-- **`catalpn`** - ALPN protocol restrictions
-- **`cath`** - Host/domain restrictions
-- **`catgeoiso3166`** - Country code restrictions
-- **`catgeocoord`** - Geographic coordinate restrictions
-- **`geohash`** - Geohash-based location
-- **`catgeoalt`** - Altitude restrictions
-- **`cattpk`** - Token public key thumbprint
+- `catreplay` - Replay attack protection nonce
+- `catpor` - Proof of possession flag
+- `catv` - CAT version
+- `catnip` - Network interface restrictions
+- `catu` - Usage limit counter
+- `catm` - HTTP method restrictions
+- `catalpn` - ALPN protocol restrictions
+- `cath` - Host/domain restrictions
+- `catgeoiso3166` - Country code restrictions
+- `catgeocoord` - Geographic coordinate restrictions
+- `geohash` - Geohash-based location
+- `catgeoalt` - Altitude restrictions
+- `cattpk` - Token public key thumbprint
 
-## 🔐 Cryptographic Support
+## Cryptographic Support
 
 ### Supported Algorithms
-- **HMAC256/256** (`alg: -4`) - HMAC with SHA-256
-- **ES256** (`alg: -7`) - ECDSA using P-256 and SHA-256
-- **PS256** (`alg: -37`) - RSASSA-PSS using SHA-256
+- HMAC256/256 (`alg: -4`) - HMAC with SHA-256
+- ES256 (`alg: -7`) - ECDSA using P-256 and SHA-256
+- PS256 (`alg: -37`) - RSASSA-PSS using SHA-256
 
 ### Key Features
 - Secure random key generation
