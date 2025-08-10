@@ -8,32 +8,32 @@ pub const CLAIM_EXP: i64 = 4;
 pub const CLAIM_NBF: i64 = 5;
 pub const CLAIM_CTI: i64 = 7;
 
-pub const CLAIM_CATREPLAY: i64 = 33001;
-pub const CLAIM_CATPOR: i64 = 33002;
-pub const CLAIM_CATV: i64 = 33003;
-pub const CLAIM_CATNIP: i64 = 33004;
-pub const CLAIM_CATU: i64 = 33005;
-pub const CLAIM_CATM: i64 = 33006;
-pub const CLAIM_CATALPN: i64 = 33007;
-pub const CLAIM_CATH: i64 = 33008;
-pub const CLAIM_CATGEOISO3166: i64 = 33009;
-pub const CLAIM_CATGEOCOORD: i64 = 33010;
-pub const CLAIM_GEOHASH: i64 = 33011;
-pub const CLAIM_CATGEOALT: i64 = 33012;
-pub const CLAIM_CATTPK: i64 = 33013;
+pub const CLAIM_CATREPLAY: i64 = 308;
+pub const CLAIM_CATPOR: i64 = 309;
+pub const CLAIM_CATV: i64 = 310;
+pub const CLAIM_CATNIP: i64 = 311;
+pub const CLAIM_CATU: i64 = 312;
+pub const CLAIM_CATM: i64 = 313;
+pub const CLAIM_CATALPN: i64 = 314;
+pub const CLAIM_CATH: i64 = 315;
+pub const CLAIM_CATGEOISO3166: i64 = 316;
+pub const CLAIM_CATGEOCOORD: i64 = 317;
+pub const CLAIM_GEOHASH: i64 = 282;
+pub const CLAIM_CATGEOALT: i64 = 318;
+pub const CLAIM_CATTPK: i64 = 319;
 
 // Informational Claims
-pub const CLAIM_SUB: i64 = 33000;
-pub const CLAIM_IAT: i64 = 33014;
-pub const CLAIM_CATIFDATA: i64 = 33020;
+pub const CLAIM_SUB: i64 = 2;
+pub const CLAIM_IAT: i64 = 6;
+pub const CLAIM_CATIFDATA: i64 = 320;
 
 // DPoP Claims
 pub const CLAIM_CNF: i64 = 8;
-pub const CLAIM_CATDPOP: i64 = 33015;
+pub const CLAIM_CATDPOP: i64 = 321;
 
 // Request Claims
-pub const CLAIM_CATIF: i64 = 33016;
-pub const CLAIM_CATR: i64 = 33017;
+pub const CLAIM_CATIF: i64 = 322;
+pub const CLAIM_CATR: i64 = 323;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CoreClaims {

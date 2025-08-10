@@ -167,18 +167,18 @@ fn test_claim_constants() {
     assert_eq!(CLAIM_CTI, 7);
 
     // CAT claims
-    assert_eq!(CLAIM_CATREPLAY, 33001);
-    assert_eq!(CLAIM_CATPOR, 33002);
-    assert_eq!(CLAIM_CATV, 33003);
-    assert_eq!(CLAIM_CATNIP, 33004);
-    assert_eq!(CLAIM_CATU, 33005);
+    assert_eq!(CLAIM_CATREPLAY, 308);
+    assert_eq!(CLAIM_CATPOR, 309);
+    assert_eq!(CLAIM_CATV, 310);
+    assert_eq!(CLAIM_CATNIP, 311);
+    assert_eq!(CLAIM_CATU, 312);
 
-    // New claims
-    assert_eq!(CLAIM_SUB, 33000);
-    assert_eq!(CLAIM_IAT, 33014);
-    assert_eq!(CLAIM_CATIFDATA, 33020);
+    // Informational claims
+    assert_eq!(CLAIM_SUB, 2);
+    assert_eq!(CLAIM_IAT, 6);
+    assert_eq!(CLAIM_CATIFDATA, 320);
     assert_eq!(CLAIM_CNF, 8);
-    assert_eq!(CLAIM_CATDPOP, 33015);
-    assert_eq!(CLAIM_CATIF, 33016);
-    assert_eq!(CLAIM_CATR, 33017);
+    assert_eq!(CLAIM_CATDPOP, 321);
+    assert_eq!(CLAIM_CATIF, 322);
+    assert_eq!(CLAIM_CATR, 323);
 }

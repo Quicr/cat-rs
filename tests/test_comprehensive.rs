@@ -323,13 +323,13 @@ fn test_all_claim_constants_coverage() {
     assert_eq!(CLAIM_ISS, 1);
     assert_eq!(CLAIM_AUD, 3);
     assert_eq!(CLAIM_CNF, 8);
-    assert_eq!(CLAIM_SUB, 33000);
-    assert_eq!(CLAIM_CATREPLAY, 33001);
-    assert_eq!(CLAIM_IAT, 33014);
-    assert_eq!(CLAIM_CATDPOP, 33015);
-    assert_eq!(CLAIM_CATIF, 33016);
-    assert_eq!(CLAIM_CATR, 33017);
-    assert_eq!(CLAIM_CATIFDATA, 33020);
+    assert_eq!(CLAIM_SUB, 2);
+    assert_eq!(CLAIM_CATREPLAY, 308);
+    assert_eq!(CLAIM_IAT, 6);
+    assert_eq!(CLAIM_CATDPOP, 321);
+    assert_eq!(CLAIM_CATIF, 322);
+    assert_eq!(CLAIM_CATR, 323);
+    assert_eq!(CLAIM_CATIFDATA, 320);
 }
 
 #[test]
