@@ -315,6 +315,11 @@ fn test_all_cat_claims() {
             catif: None,
             catr: None,
         },
+        composite: cat_impl::claims::CompositeClaims::default(),
+        moqt: cat_impl::claims::MoqtClaims {
+            moqt: None,
+            moqt_reval: None,
+        },
         custom: std::collections::HashMap::new(),
     };
 
@@ -413,4 +418,304 @@ fn test_geographic_validation() {
         result,
         Err(CatError::GeographicValidationFailed(_))
     ));
+}
+
+#[test]
+fn test_moqt_claims_creation() {
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+
+    let namespace_match = BinaryMatch::exact(b"example.com".to_vec());
+    let track_match = BinaryMatch::prefix(b"/bob".to_vec());
+
+    let scope = MoqtScope::new()
+        .with_actions(vec![
+            MoqtAction::Announce,
+            MoqtAction::SubscribeNamespace,
+            MoqtAction::Publish,
+            MoqtAction::Fetch,
+        ])
+        .with_namespace_match(namespace_match)
+        .with_track_match(track_match);
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://moqt-issuer.com")
+        .audience(vec!["moqt-relay".to_string()])
+        .expires_at(Utc::now() + Duration::hours(1))
+        .cwt_id("moqt-token")
+        .moqt_scope(scope)
+        .moqt_reval(300.0)
+        .build();
+
+    // Test MOQT claims are present
+    assert!(token.moqt.moqt.is_some());
+    assert_eq!(token.moqt.moqt_reval, Some(300.0));
+
+    let scopes = token.moqt.moqt.as_ref().unwrap();
+    assert_eq!(scopes.len(), 1);
+    assert_eq!(scopes[0].actions.len(), 4);
+    assert!(scopes[0].actions.contains(&MoqtAction::Announce));
+    assert!(scopes[0].actions.contains(&MoqtAction::Publish));
+
+    // Test action authorization
+    assert!(token.allows_moqt_action(
+        &MoqtAction::Announce,
+        b"example.com",
+        b"/bob/stream1"
+    ));
+
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Subscribe,  // Not in allowed actions
+        b"example.com",
+        b"/bob/stream1"
+    ));
+
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Announce,
+        b"other.com",  // Doesn't match namespace
+        b"/bob/stream1"
+    ));
+
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Announce,
+        b"example.com",
+        b"/alice/stream1"  // Doesn't match track prefix
+    ));
+}
+
+#[test]
+fn test_moqt_binary_match() {
+    use cat_impl::claims::BinaryMatch;
+
+    // Test exact match
+    let exact_match = BinaryMatch::exact(b"example.com".to_vec());
+    assert!(exact_match.matches(b"example.com"));
+    assert!(!exact_match.matches(b"example.org"));
+    assert!(!exact_match.matches(b"sub.example.com"));
+
+    // Test prefix match
+    let prefix_match = BinaryMatch::prefix(b"/bob".to_vec());
+    assert!(prefix_match.matches(b"/bob"));
+    assert!(prefix_match.matches(b"/bob/stream1"));
+    assert!(prefix_match.matches(b"/bob/logs"));
+    assert!(!prefix_match.matches(b"/alice"));
+    assert!(!prefix_match.matches(b""));
+
+    // Test suffix match
+    let suffix_match = BinaryMatch::suffix(b".mp4".to_vec());
+    assert!(suffix_match.matches(b"video.mp4"));
+    assert!(suffix_match.matches(b"/path/to/video.mp4"));
+    assert!(!suffix_match.matches(b"video.mp3"));
+    assert!(!suffix_match.matches(b"video.mp4.bak"));
+
+    // Test contains match
+    let contains_match = BinaryMatch::contains(b"live".to_vec());
+    assert!(contains_match.matches(b"live"));
+    assert!(contains_match.matches(b"livestream"));
+    assert!(contains_match.matches(b"stream-live-hd"));
+    assert!(!contains_match.matches(b"recorded"));
+
+    // Test empty match (should match everything)
+    let empty_match = BinaryMatch::default();
+    assert!(empty_match.matches(b"anything"));
+    assert!(empty_match.matches(b""));
+    assert!(empty_match.matches(b"example.com"));
+}
+
+#[test]
+fn test_moqt_token_encoding_decoding() {
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+
+    let key = HmacSha256Algorithm::generate_key();
+    let algorithm = HmacSha256Algorithm::new(&key);
+
+    let scope1 = MoqtScope::new()
+        .with_actions(vec![MoqtAction::Announce, MoqtAction::Publish])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::prefix(b"/bob".to_vec()));
+
+    let scope2 = MoqtScope::new()
+        .with_actions(vec![MoqtAction::Fetch])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::exact(b"logs/12345/bob".to_vec()));
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://moqt-test.com")
+        .audience(vec!["moqt-relay".to_string()])
+        .expires_at(Utc::now() + Duration::hours(1))
+        .cwt_id("moqt-encode-test")
+        .moqt_scopes(vec![scope1, scope2])
+        .moqt_reval(600.0)
+        .build();
+
+    let encoded = encode_token(&token, &algorithm).unwrap();
+    let decoded = decode_token(&encoded, &algorithm).unwrap();
+
+    // Verify MOQT claims were preserved
+    assert_eq!(decoded.moqt.moqt_reval, Some(600.0));
+    assert!(decoded.moqt.moqt.is_some());
+
+    let decoded_scopes = decoded.moqt.moqt.as_ref().unwrap();
+    assert_eq!(decoded_scopes.len(), 2);
+
+    // Verify first scope
+    assert_eq!(decoded_scopes[0].actions.len(), 2);
+    assert!(decoded_scopes[0].actions.contains(&MoqtAction::Announce));
+    assert!(decoded_scopes[0].actions.contains(&MoqtAction::Publish));
+    assert!(decoded_scopes[0].matches_namespace(b"example.com"));
+    assert!(decoded_scopes[0].matches_track(b"/bob/stream1"));
+
+    // Verify second scope
+    assert_eq!(decoded_scopes[1].actions.len(), 1);
+    assert!(decoded_scopes[1].actions.contains(&MoqtAction::Fetch));
+    assert!(decoded_scopes[1].matches_track(b"logs/12345/bob"));
+    assert!(!decoded_scopes[1].matches_track(b"logs/12345/alice"));
+}
+
+#[test]
+fn test_moqt_multiple_scopes_authorization() {
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+
+    // Create multiple scopes with different permissions
+    let scope1 = MoqtScope::new()
+        .with_actions(vec![MoqtAction::Announce, MoqtAction::SubscribeNamespace])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::prefix(b"/public".to_vec()));
+
+    let scope2 = MoqtScope::new()
+        .with_actions(vec![MoqtAction::Publish, MoqtAction::Fetch])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::prefix(b"/private".to_vec()));
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://multi-scope-test.com")
+        .audience(vec!["moqt-relay".to_string()])
+        .expires_at(Utc::now() + Duration::hours(1))
+        .moqt_scopes(vec![scope1, scope2])
+        .build();
+
+    // Test permissions for public namespace (scope1)
+    assert!(token.allows_moqt_action(
+        &MoqtAction::Announce,
+        b"example.com",
+        b"/public/stream1"
+    ));
+    assert!(token.allows_moqt_action(
+        &MoqtAction::SubscribeNamespace,
+        b"example.com", 
+        b"/public/events"
+    ));
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Publish,  // Not allowed in scope1
+        b"example.com",
+        b"/public/stream1"
+    ));
+
+    // Test permissions for private namespace (scope2)
+    assert!(token.allows_moqt_action(
+        &MoqtAction::Publish,
+        b"example.com",
+        b"/private/stream1"
+    ));
+    assert!(token.allows_moqt_action(
+        &MoqtAction::Fetch,
+        b"example.com",
+        b"/private/data"
+    ));
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Announce,  // Not allowed in scope2
+        b"example.com",
+        b"/private/stream1"
+    ));
+
+    // Test no permissions for other paths
+    assert!(!token.allows_moqt_action(
+        &MoqtAction::Announce,
+        b"example.com",
+        b"/restricted/stream1"  // No matching scope
+    ));
+}
+
+#[test]  
+fn test_moqt_action_conversion() {
+    use cat_impl::claims::MoqtAction;
+
+    // Test From<i32> conversion
+    assert_eq!(MoqtAction::from(0), MoqtAction::ClientSetup);
+    assert_eq!(MoqtAction::from(1), MoqtAction::ServerSetup);
+    assert_eq!(MoqtAction::from(2), MoqtAction::Announce);
+    assert_eq!(MoqtAction::from(3), MoqtAction::SubscribeNamespace);
+    assert_eq!(MoqtAction::from(4), MoqtAction::Subscribe);
+    assert_eq!(MoqtAction::from(5), MoqtAction::SubscribeUpdate);
+    assert_eq!(MoqtAction::from(6), MoqtAction::Publish);
+    assert_eq!(MoqtAction::from(7), MoqtAction::Fetch);
+    assert_eq!(MoqtAction::from(8), MoqtAction::TrackStatus);
+    
+    // Test unknown action defaults to ClientSetup
+    assert_eq!(MoqtAction::from(99), MoqtAction::ClientSetup);
+}
+
+#[test]
+fn test_moqt_spec_example_exact_match() {
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    
+    // Example from spec: Allow with an exact match "example.com/bob"
+    let scope = MoqtScope::new()
+        .with_actions(vec![
+            MoqtAction::Announce,
+            MoqtAction::SubscribeNamespace,
+            MoqtAction::Publish,
+            MoqtAction::Fetch,
+        ])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::exact(b"/bob".to_vec()));
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://spec-example.com")
+        .moqt_scope(scope)
+        .build();
+
+    // Should permit
+    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob"));
+
+    // Should prohibit
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/123"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/alice"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/logs"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"alternate/example.com", b"/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"12345", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example", b".com/bob"));
+}
+
+#[test] 
+fn test_moqt_spec_example_prefix_match() {
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    
+    // Example from spec: Allow with a prefix match "example.com/bob"
+    let scope = MoqtScope::new()
+        .with_actions(vec![
+            MoqtAction::Announce,
+            MoqtAction::SubscribeNamespace,
+            MoqtAction::Publish,
+            MoqtAction::Fetch,
+        ])
+        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_track_match(BinaryMatch::prefix(b"/bob".to_vec()));
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://spec-prefix-example.com")
+        .moqt_scope(scope)
+        .build();
+
+    // Should permit
+    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob"));
+    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/123"));
+    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/logs"));
+
+    // Should prohibit
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/alice"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"alternate/example.com", b"/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"12345", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example", b".com/bob"));
 }

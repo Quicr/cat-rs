@@ -222,6 +222,32 @@ impl Cwt {
             claims_map.insert(CLAIM_CATR, Value::Text(catr.clone()));
         }
 
+        // MOQT claims
+        if let Some(ref moqt_scopes) = self.payload.moqt.moqt {
+            let scopes_array: Vec<Value> = moqt_scopes
+                .iter()
+                .map(|scope| {
+                    let actions: Vec<Value> = scope.actions.iter()
+                        .map(|action| Value::Integer((*action as i32).into()))
+                        .collect();
+                    
+                    let ns_match = encode_binary_match(&scope.namespace_match);
+                    let track_match = encode_binary_match(&scope.track_match);
+                    
+                    Value::Array(vec![
+                        Value::Array(actions),
+                        ns_match,
+                        track_match,
+                    ])
+                })
+                .collect();
+            claims_map.insert(CLAIM_MOQT, Value::Array(scopes_array));
+        }
+
+        if let Some(moqt_reval) = self.payload.moqt.moqt_reval {
+            claims_map.insert(CLAIM_MOQT_REVAL, Value::Float(moqt_reval));
+        }
+
         for (key, value) in &self.payload.custom {
             claims_map.insert(*key, value.clone());
         }
@@ -237,6 +263,69 @@ impl Cwt {
 
         Ok(buffer)
     }
+}
+
+fn encode_binary_match(binary_match: &crate::claims::BinaryMatch) -> Value {
+    let mut match_map = Vec::new();
+    
+    if let Some(ref exact) = binary_match.exact {
+        match_map.push((Value::Integer(0.into()), Value::Bytes(exact.clone())));
+    }
+    
+    if let Some(ref prefix) = binary_match.prefix {
+        match_map.push((Value::Integer(1.into()), Value::Bytes(prefix.clone())));
+    }
+    
+    if let Some(ref suffix) = binary_match.suffix {
+        match_map.push((Value::Integer(2.into()), Value::Bytes(suffix.clone())));
+    }
+    
+    if let Some(ref contains) = binary_match.contains {
+        match_map.push((Value::Integer(3.into()), Value::Bytes(contains.clone())));
+    }
+    
+    Value::Map(match_map)
+}
+
+fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatError> {
+    let mut binary_match = crate::claims::BinaryMatch::default();
+    
+    if let Value::Map(map) = value {
+        for (key, val) in map {
+            if let Value::Integer(match_type) = key {
+                if let Ok(match_type_i32) = TryInto::<i32>::try_into(*match_type) {
+                    match match_type_i32 {
+                        0 => {
+                            if let Value::Bytes(data) = val {
+                                binary_match.exact = Some(data.clone());
+                            }
+                        }
+                        1 => {
+                            if let Value::Bytes(data) = val {
+                                binary_match.prefix = Some(data.clone());
+                            }
+                        }
+                        2 => {
+                            if let Value::Bytes(data) = val {
+                                binary_match.suffix = Some(data.clone());
+                            }
+                        }
+                        3 => {
+                            if let Value::Bytes(data) = val {
+                                binary_match.contains = Some(data.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(binary_match)
+}
+
+impl Cwt {
 
     pub fn decode_payload(cbor_data: &[u8]) -> Result<CatToken, CatError> {
         let value: Value = ciborium::de::from_reader(cbor_data)
@@ -285,6 +374,11 @@ impl Cwt {
         let mut request = RequestClaims {
             catif: None,
             catr: None,
+        };
+
+        let mut moqt = crate::claims::MoqtClaims {
+            moqt: None,
+            moqt_reval: None,
         };
 
         let mut custom = HashMap::new();
@@ -568,6 +662,50 @@ impl Cwt {
                         request.catr = Some(s);
                     }
                 }
+                CLAIM_MOQT => {
+                    if let Value::Array(scopes_array) = value {
+                        let mut scopes = Vec::new();
+                        for scope_value in scopes_array {
+                            if let Value::Array(scope_array) = scope_value {
+                                if scope_array.len() == 3 {
+                                    // Parse actions
+                                    let mut actions = Vec::new();
+                                    if let Value::Array(ref actions_array) = scope_array[0] {
+                                        for action_value in actions_array {
+                                            if let Value::Integer(action_int) = action_value {
+                                                if let Ok(action_i32) = TryInto::<i32>::try_into(*action_int) {
+                                                    actions.push(crate::claims::MoqtAction::from(action_i32));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Parse namespace match
+                                    let ns_match = decode_binary_match(&scope_array[1])?;
+                                    
+                                    // Parse track match  
+                                    let track_match = decode_binary_match(&scope_array[2])?;
+                                    
+                                    scopes.push(crate::claims::MoqtScope {
+                                        actions,
+                                        namespace_match: ns_match,
+                                        track_match: track_match,
+                                    });
+                                }
+                            }
+                        }
+                        moqt.moqt = Some(scopes);
+                    }
+                }
+                CLAIM_MOQT_REVAL => {
+                    if let Value::Float(f) = value {
+                        moqt.moqt_reval = Some(f);
+                    } else if let Value::Integer(i) = value {
+                        if let Ok(i_i64) = TryInto::<i64>::try_into(i) {
+                            moqt.moqt_reval = Some(i_i64 as f64);
+                        }
+                    }
+                }
                 _ => {
                     custom.insert(claim_id, value);
                 }
@@ -580,6 +718,8 @@ impl Cwt {
             informational,
             dpop,
             request,
+            composite: crate::claims::CompositeClaims::default(),
+            moqt,
             custom,
         })
     }
