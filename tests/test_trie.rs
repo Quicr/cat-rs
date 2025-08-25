@@ -9,7 +9,7 @@ fn test_prefix_trie_basic_operations() {
     trie.insert("http://", "http".to_string());
     trie.insert("ftp://", "ftp".to_string());
 
-    assert_eq!(trie.size, 3);
+    assert_eq!(trie.size(), 3);
 
     // Test prefix matching
     let matches = trie.search_prefix("https://example.com/path");
@@ -48,11 +48,11 @@ fn test_prefix_trie_removal() {
     trie.insert("test", "test".to_string());
     trie.insert("testing", "testing".to_string());
 
-    assert_eq!(trie.size, 2);
+    assert_eq!(trie.size(), 2);
     assert!(trie.contains_prefix("testing"));
 
     trie.remove("test");
-    assert_eq!(trie.size, 1);
+    assert_eq!(trie.size(), 1);
     assert!(!trie.contains_prefix("test"));
     assert!(trie.contains_prefix("testing"));
 }
@@ -66,7 +66,7 @@ fn test_suffix_trie_basic_operations() {
     trie.insert(".org", "org-domain".to_string());
     trie.insert(".json", "json-file".to_string());
 
-    assert_eq!(trie.size, 3);
+    assert_eq!(trie.size(), 3);
 
     // Test suffix matching
     let matches = trie.search_suffix("example.com");
@@ -109,11 +109,11 @@ fn test_suffix_trie_removal() {
     trie.insert(".html", "html".to_string());
     trie.insert(".htm", "htm".to_string());
 
-    assert_eq!(trie.size, 2);
+    assert_eq!(trie.size(), 2);
     assert!(trie.contains_suffix("index.html"));
 
     trie.remove(".html");
-    assert_eq!(trie.size, 1);
+    assert_eq!(trie.size(), 1);
     assert!(!trie.contains_suffix("index.html"));
     assert!(trie.contains_suffix("page.htm"));
 }
@@ -243,8 +243,8 @@ fn test_empty_tries() {
     let prefix_trie = PrefixTrie::new();
     let suffix_trie = SuffixTrie::new();
 
-    assert_eq!(prefix_trie.size, 0);
-    assert_eq!(suffix_trie.size, 0);
+    assert_eq!(prefix_trie.size(), 0);
+    assert_eq!(suffix_trie.size(), 0);
 
     assert!(prefix_trie.search_prefix("anything").is_empty());
     assert!(suffix_trie.search_suffix("anything").is_empty());

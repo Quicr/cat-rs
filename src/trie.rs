@@ -148,6 +148,10 @@ impl PrefixTrie {
 
         false
     }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -285,6 +289,10 @@ impl SuffixTrie {
         }
 
         false
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
     }
 }
 
