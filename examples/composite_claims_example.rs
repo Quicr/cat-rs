@@ -27,7 +27,7 @@ fn create_token_for_region(issuer: &str, region: &str) -> CatToken {
         .with_issuer(issuer)
         .with_audience(vec!["payment-service".to_string()])
         .with_expiration(exp)
-        .with_cwt_id(&format!("token-{}", region))
+        .with_cwt_id(format!("token-{}", region))
         .with_uri_patterns(vec![]) // Placeholder for region-specific URIs
 }
 

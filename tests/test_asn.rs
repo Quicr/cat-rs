@@ -171,11 +171,11 @@ fn test_asn_validation_ranges() {
 
     // Test ASN range validation
     let token = CatToken::new().with_asn_range(64512, 65534);
-    if let Some(nips) = &token.cat.catnip {
-        if let NetworkIdentifier::AsnRange(start, end) = &nips[0] {
-            assert!(start < end, "ASN range start should be less than end");
-            assert!(*start >= 1, "ASN should be at least 1");
-        }
+    if let Some(nips) = &token.cat.catnip
+        && let NetworkIdentifier::AsnRange(start, end) = &nips[0]
+    {
+        assert!(start < end, "ASN range start should be less than end");
+        assert!(*start >= 1, "ASN should be at least 1");
     }
 }
 

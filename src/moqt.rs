@@ -127,10 +127,11 @@ impl MoqtValidator {
 
             // "If the revalidation interval is smaller than the recipient is prepared or able to revalidate,
             //  the recipient MUST reject the token"
-            if let Some(min_interval) = self.min_revalidation_interval {
-                if reval > 0.0 && reval < min_interval {
-                    return Err(CatError::RevalidationIntervalTooShort);
-                }
+            if let Some(min_interval) = self.min_revalidation_interval
+                && reval > 0.0
+                && reval < min_interval
+            {
+                return Err(CatError::RevalidationIntervalTooShort);
             }
 
             // "When the value of this claim is zero, the token MUST NOT be revalidated"
@@ -236,10 +237,10 @@ impl MoqtValidator {
         }
 
         // Check track match
-        if let Some(ref track_match) = scope.track_match {
-            if !track_match.matches(&request.track) {
-                return false;
-            }
+        if let Some(ref track_match) = scope.track_match
+            && !track_match.matches(&request.track)
+        {
+            return false;
         }
 
         true

@@ -247,7 +247,7 @@ impl CompositeClaim {
 }
 
 /// Container for composite claims in a CAT token
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct CompositeClaims {
     /// OR composite claim
     pub or_claim: Option<CompositeClaim>,
@@ -255,16 +255,6 @@ pub struct CompositeClaims {
     pub nor_claim: Option<CompositeClaim>,
     /// AND composite claim
     pub and_claim: Option<CompositeClaim>,
-}
-
-impl Default for CompositeClaims {
-    fn default() -> Self {
-        Self {
-            or_claim: None,
-            nor_claim: None,
-            and_claim: None,
-        }
-    }
 }
 
 impl CompositeClaims {
@@ -278,22 +268,22 @@ impl CompositeClaims {
     where
         V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
     {
-        if let Some(ref or_claim) = self.or_claim {
-            if !or_claim.evaluate(validator) {
-                return Err("OR composite claim validation failed".into());
-            }
+        if let Some(ref or_claim) = self.or_claim
+            && !or_claim.evaluate(validator)
+        {
+            return Err("OR composite claim validation failed".into());
         }
 
-        if let Some(ref nor_claim) = self.nor_claim {
-            if !nor_claim.evaluate(validator) {
-                return Err("NOR composite claim validation failed".into());
-            }
+        if let Some(ref nor_claim) = self.nor_claim
+            && !nor_claim.evaluate(validator)
+        {
+            return Err("NOR composite claim validation failed".into());
         }
 
-        if let Some(ref and_claim) = self.and_claim {
-            if !and_claim.evaluate(validator) {
-                return Err("AND composite claim validation failed".into());
-            }
+        if let Some(ref and_claim) = self.and_claim
+            && !and_claim.evaluate(validator)
+        {
+            return Err("AND composite claim validation failed".into());
         }
 
         Ok(())
@@ -585,10 +575,10 @@ impl MoqtScope {
         }
 
         // Match track name
-        if let Some(ref track_match) = self.track_match {
-            if !track_match.matches(track) {
-                return false;
-            }
+        if let Some(ref track_match) = self.track_match
+            && !track_match.matches(track)
+        {
+            return false;
         }
 
         true
@@ -630,6 +620,12 @@ pub struct CatToken {
     pub composite: CompositeClaims,
     pub moqt: MoqtClaims,
     pub custom: HashMap<i64, ciborium::Value>,
+}
+
+impl Default for CatToken {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CatToken {

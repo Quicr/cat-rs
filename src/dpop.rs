@@ -293,13 +293,13 @@ impl DpopValidator {
             return Err(CatError::InvalidDpopBinding);
         }
 
-        if self.settings.should_honor_jti() {
-            if let Some(ref jti) = proof.payload.jti {
-                if self.used_jtis.contains_key(jti) {
-                    return Err(CatError::ReplayAttackDetected);
-                }
-                self.used_jtis.insert(jti.clone(), proof.payload.iat);
+        if self.settings.should_honor_jti()
+            && let Some(ref jti) = proof.payload.jti
+        {
+            if self.used_jtis.contains_key(jti) {
+                return Err(CatError::ReplayAttackDetected);
             }
+            self.used_jtis.insert(jti.clone(), proof.payload.iat);
         }
 
         Ok(())

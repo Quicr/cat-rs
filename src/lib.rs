@@ -8,14 +8,15 @@ pub mod moqt;
 pub mod token;
 
 // Conditional trie module selection based on features
+// qp-trie takes precedence if both are enabled
 #[cfg(feature = "qp-trie")]
 mod trie_qp;
 #[cfg(feature = "qp-trie")]
 pub use trie_qp::*;
 
-#[cfg(feature = "builtin-trie")]
+#[cfg(all(feature = "builtin-trie", not(feature = "qp-trie")))]
 mod trie;
-#[cfg(feature = "builtin-trie")]
+#[cfg(all(feature = "builtin-trie", not(feature = "qp-trie")))]
 pub use trie::*;
 
 pub use claims::*;

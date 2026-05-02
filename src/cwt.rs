@@ -77,33 +77,21 @@ impl Cwt {
                 .iter()
                 .map(|nip| match nip {
                     NetworkIdentifier::IpAddress(ip) => Value::Text(ip.clone()),
-                    NetworkIdentifier::IpRange(range) => {
-                        let mut nip_map = Vec::new();
-                        nip_map.push((
-                            Value::Text("ip_range".to_string()),
-                            Value::Text(range.clone()),
-                        ));
-                        Value::Map(nip_map)
-                    }
-                    NetworkIdentifier::Asn(asn) => {
-                        let mut nip_map = Vec::new();
-                        nip_map.push((
-                            Value::Text("asn".to_string()),
-                            Value::Integer((*asn).into()),
-                        ));
-                        Value::Map(nip_map)
-                    }
-                    NetworkIdentifier::AsnRange(start, end) => {
-                        let mut nip_map = Vec::new();
-                        nip_map.push((
-                            Value::Text("asn_range".to_string()),
-                            Value::Array(vec![
-                                Value::Integer((*start).into()),
-                                Value::Integer((*end).into()),
-                            ]),
-                        ));
-                        Value::Map(nip_map)
-                    }
+                    NetworkIdentifier::IpRange(range) => Value::Map(vec![(
+                        Value::Text("ip_range".to_string()),
+                        Value::Text(range.clone()),
+                    )]),
+                    NetworkIdentifier::Asn(asn) => Value::Map(vec![(
+                        Value::Text("asn".to_string()),
+                        Value::Integer((*asn).into()),
+                    )]),
+                    NetworkIdentifier::AsnRange(start, end) => Value::Map(vec![(
+                        Value::Text("asn_range".to_string()),
+                        Value::Array(vec![
+                            Value::Integer((*start).into()),
+                            Value::Integer((*end).into()),
+                        ]),
+                    )]),
                 })
                 .collect();
             claims_map.insert(CLAIM_CATNIP, Value::Array(nip_values));
@@ -127,29 +115,22 @@ impl Cwt {
                 .iter()
                 .map(|pattern| match pattern {
                     UriPattern::Exact(s) => Value::Text(s.clone()),
-                    UriPattern::Prefix(s) => {
-                        let mut pattern_map = Vec::new();
-                        pattern_map
-                            .push((Value::Text("prefix".to_string()), Value::Text(s.clone())));
-                        Value::Map(pattern_map)
-                    }
-                    UriPattern::Suffix(s) => {
-                        let mut pattern_map = Vec::new();
-                        pattern_map
-                            .push((Value::Text("suffix".to_string()), Value::Text(s.clone())));
-                        Value::Map(pattern_map)
-                    }
-                    UriPattern::Regex(s) => {
-                        let mut pattern_map = Vec::new();
-                        pattern_map
-                            .push((Value::Text("regex".to_string()), Value::Text(s.clone())));
-                        Value::Map(pattern_map)
-                    }
-                    UriPattern::Hash(s) => {
-                        let mut pattern_map = Vec::new();
-                        pattern_map.push((Value::Text("hash".to_string()), Value::Text(s.clone())));
-                        Value::Map(pattern_map)
-                    }
+                    UriPattern::Prefix(s) => Value::Map(vec![(
+                        Value::Text("prefix".to_string()),
+                        Value::Text(s.clone()),
+                    )]),
+                    UriPattern::Suffix(s) => Value::Map(vec![(
+                        Value::Text("suffix".to_string()),
+                        Value::Text(s.clone()),
+                    )]),
+                    UriPattern::Regex(s) => Value::Map(vec![(
+                        Value::Text("regex".to_string()),
+                        Value::Text(s.clone()),
+                    )]),
+                    UriPattern::Hash(s) => Value::Map(vec![(
+                        Value::Text("hash".to_string()),
+                        Value::Text(s.clone()),
+                    )]),
                 })
                 .collect();
             claims_map.insert(CLAIM_CATH, Value::Array(pattern_values));
@@ -514,41 +495,28 @@ impl Cwt {
                                                     }
                                                 }
                                                 "asn" => {
-                                                    if let Value::Integer(asn) = v {
-                                                        if let Ok(asn_u32) =
+                                                    if let Value::Integer(asn) = v
+                                                        && let Ok(asn_u32) =
                                                             TryInto::<u32>::try_into(asn)
-                                                        {
-                                                            nips.push(NetworkIdentifier::Asn(
-                                                                asn_u32,
-                                                            ));
-                                                        }
+                                                    {
+                                                        nips.push(NetworkIdentifier::Asn(asn_u32));
                                                     }
                                                 }
                                                 "asn_range" => {
-                                                    if let Value::Array(range_arr) = v {
-                                                        if range_arr.len() == 2 {
-                                                            if let (
-                                                                Value::Integer(start),
-                                                                Value::Integer(end),
-                                                            ) = (&range_arr[0], &range_arr[1])
-                                                            {
-                                                                if let (
-                                                                    Ok(start_u32),
-                                                                    Ok(end_u32),
-                                                                ) = (
-                                                                    TryInto::<u32>::try_into(
-                                                                        *start,
-                                                                    ),
-                                                                    TryInto::<u32>::try_into(*end),
-                                                                ) {
-                                                                    nips.push(
-                                                                        NetworkIdentifier::AsnRange(
-                                                                            start_u32, end_u32,
-                                                                        ),
-                                                                    );
-                                                                }
-                                                            }
-                                                        }
+                                                    if let Value::Array(range_arr) = v
+                                                        && range_arr.len() == 2
+                                                        && let (
+                                                            Value::Integer(start),
+                                                            Value::Integer(end),
+                                                        ) = (&range_arr[0], &range_arr[1])
+                                                        && let (Ok(start_u32), Ok(end_u32)) = (
+                                                            TryInto::<u32>::try_into(*start),
+                                                            TryInto::<u32>::try_into(*end),
+                                                        )
+                                                    {
+                                                        nips.push(NetworkIdentifier::AsnRange(
+                                                            start_u32, end_u32,
+                                                        ));
                                                     }
                                                 }
                                                 _ => {}
@@ -589,30 +557,18 @@ impl Cwt {
                         for item in arr {
                             if let Value::Text(s) = item {
                                 patterns.push(UriPattern::Exact(s));
-                            } else if let Value::Map(pattern_map) = item {
-                                if let Some((key, val)) = pattern_map.into_iter().next() {
-                                    if let (Value::Text(pattern_type), Value::Text(pattern_value)) =
-                                        (key, val)
-                                    {
-                                        match pattern_type.as_str() {
-                                            "exact" => {
-                                                patterns.push(UriPattern::Exact(pattern_value))
-                                            }
-                                            "prefix" => {
-                                                patterns.push(UriPattern::Prefix(pattern_value))
-                                            }
-                                            "suffix" => {
-                                                patterns.push(UriPattern::Suffix(pattern_value))
-                                            }
-                                            "regex" => {
-                                                patterns.push(UriPattern::Regex(pattern_value))
-                                            }
-                                            "hash" => {
-                                                patterns.push(UriPattern::Hash(pattern_value))
-                                            }
-                                            _ => {}
-                                        }
-                                    }
+                            } else if let Value::Map(pattern_map) = item
+                                && let Some((key, val)) = pattern_map.into_iter().next()
+                                && let (Value::Text(pattern_type), Value::Text(pattern_value)) =
+                                    (key, val)
+                            {
+                                match pattern_type.as_str() {
+                                    "exact" => patterns.push(UriPattern::Exact(pattern_value)),
+                                    "prefix" => patterns.push(UriPattern::Prefix(pattern_value)),
+                                    "suffix" => patterns.push(UriPattern::Suffix(pattern_value)),
+                                    "regex" => patterns.push(UriPattern::Regex(pattern_value)),
+                                    "hash" => patterns.push(UriPattern::Hash(pattern_value)),
+                                    _ => {}
                                 }
                             }
                         }
@@ -702,10 +658,10 @@ impl Cwt {
                         for (k, v) in map {
                             if let Value::Integer(key_int) = k {
                                 let key_val: i64 = key_int.try_into().unwrap_or(-1);
-                                if key_val == CNF_JKT {
-                                    if let Value::Bytes(jkt) = v {
-                                        dpop.cnf = Some(ConfirmationClaim::new(jkt));
-                                    }
+                                if key_val == CNF_JKT
+                                    && let Value::Bytes(jkt) = v
+                                {
+                                    dpop.cnf = Some(ConfirmationClaim::new(jkt));
                                 }
                             }
                         }
@@ -762,12 +718,11 @@ impl Cwt {
                                 let mut actions = Vec::new();
                                 if let Value::Array(ref actions_array) = scope_array[0] {
                                     for action_value in actions_array {
-                                        if let Value::Integer(action_int) = action_value {
-                                            if let Ok(action_i32) =
+                                        if let Value::Integer(action_int) = action_value
+                                            && let Ok(action_i32) =
                                                 TryInto::<i32>::try_into(*action_int)
-                                            {
-                                                actions.push(MoqtAction::from(action_i32));
-                                            }
+                                        {
+                                            actions.push(MoqtAction::from(action_i32));
                                         }
                                     }
                                 }
@@ -776,12 +731,11 @@ impl Cwt {
                                 let mut track_match = None;
 
                                 // Parse namespace matches (optional, second element)
-                                if scope_array.len() > 1 {
-                                    if let Value::Array(ref ns_array) = scope_array[1] {
-                                        for ns_value in ns_array {
-                                            namespace_matches
-                                                .push(decode_namespace_match(ns_value)?);
-                                        }
+                                if scope_array.len() > 1
+                                    && let Value::Array(ref ns_array) = scope_array[1]
+                                {
+                                    for ns_value in ns_array {
+                                        namespace_matches.push(decode_namespace_match(ns_value)?);
                                     }
                                 }
 
@@ -803,10 +757,10 @@ impl Cwt {
                 CLAIM_MOQT_REVAL => {
                     if let Value::Float(f) = value {
                         moqt.moqt_reval = Some(f);
-                    } else if let Value::Integer(i) = value {
-                        if let Ok(i_i64) = TryInto::<i64>::try_into(i) {
-                            moqt.moqt_reval = Some(i_i64 as f64);
-                        }
+                    } else if let Value::Integer(i) = value
+                        && let Ok(i_i64) = TryInto::<i64>::try_into(i)
+                    {
+                        moqt.moqt_reval = Some(i_i64 as f64);
                     }
                 }
                 _ => {

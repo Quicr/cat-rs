@@ -42,7 +42,7 @@ fn generate_hmac_example() -> Result<(), Box<dyn std::error::Error>> {
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
 
-    println!("HMAC256 Key (hex): {}", format!("{:x?}", key));
+    println!("HMAC256 Key (hex): {:x?}", key);
     println!("Sample CAT Token: {}", encoded);
 
     let decoded = decode_token(&encoded, &algorithm)?;

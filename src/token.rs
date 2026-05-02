@@ -11,6 +11,12 @@ pub struct CatTokenValidator {
     clock_skew_tolerance: i64,
 }
 
+impl Default for CatTokenValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CatTokenValidator {
     pub fn new() -> Self {
         Self {
@@ -38,16 +44,16 @@ impl CatTokenValidator {
     pub fn validate(&self, token: &CatToken) -> Result<(), CatError> {
         let now = Utc::now().timestamp();
 
-        if let Some(exp) = token.core.exp {
-            if now > exp + self.clock_skew_tolerance {
-                return Err(CatError::TokenExpired);
-            }
+        if let Some(exp) = token.core.exp
+            && now > exp + self.clock_skew_tolerance
+        {
+            return Err(CatError::TokenExpired);
         }
 
-        if let Some(nbf) = token.core.nbf {
-            if now < nbf - self.clock_skew_tolerance {
-                return Err(CatError::TokenNotYetValid);
-            }
+        if let Some(nbf) = token.core.nbf
+            && now < nbf - self.clock_skew_tolerance
+        {
+            return Err(CatError::TokenNotYetValid);
         }
 
         if let Some(ref expected_issuers) = self.expected_issuers {
@@ -78,20 +84,20 @@ impl CatTokenValidator {
     }
 
     fn validate_geographic_restrictions(&self, token: &CatToken) -> Result<(), CatError> {
-        if let Some(ref coords) = token.cat.catgeocoord {
-            if coords.lat.abs() > 90.0 || coords.lon.abs() > 180.0 {
-                return Err(CatError::GeographicValidationFailed(
-                    "Invalid coordinates".to_string(),
-                ));
-            }
+        if let Some(ref coords) = token.cat.catgeocoord
+            && (coords.lat.abs() > 90.0 || coords.lon.abs() > 180.0)
+        {
+            return Err(CatError::GeographicValidationFailed(
+                "Invalid coordinates".to_string(),
+            ));
         }
 
-        if let Some(ref geohash) = token.cat.geohash {
-            if geohash.is_empty() || geohash.len() > 12 {
-                return Err(CatError::GeographicValidationFailed(
-                    "Invalid geohash".to_string(),
-                ));
-            }
+        if let Some(ref geohash) = token.cat.geohash
+            && (geohash.is_empty() || geohash.len() > 12)
+        {
+            return Err(CatError::GeographicValidationFailed(
+                "Invalid geohash".to_string(),
+            ));
         }
 
         Ok(())
@@ -131,6 +137,12 @@ impl CatTokenValidator {
 
 pub struct CatTokenBuilder {
     inner: CatToken,
+}
+
+impl Default for CatTokenBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CatTokenBuilder {
