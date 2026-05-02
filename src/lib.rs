@@ -4,6 +4,7 @@ pub mod cwt;
 pub mod dpop;
 pub mod error;
 pub mod jwk;
+pub mod moqt;
 pub mod token;
 
 // Conditional trie module selection based on features
@@ -23,4 +24,5 @@ pub use cwt::*;
 pub use dpop::*;
 pub use error::*;
 pub use jwk::*;
+pub use moqt::*;
 pub use token::*;
