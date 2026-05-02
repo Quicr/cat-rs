@@ -1,5 +1,14 @@
 # Common Access Token (CAT) Implementation
 
+[![CI](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml/badge.svg)](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+| Platform | Status |
+|----------|--------|
+| Linux | ![Ubuntu](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=ubuntu) |
+| macOS | ![macOS](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=macos) |
+| Windows | ![Windows](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=windows) |
+
 ##  Overview
 
 This project provides implementation of Common Access Tokens (CAT) as defined in the CTA-5007-B specification. CAT tokens use CBOR Web Token (CWT) format with CBOR encoding and base64URL transport encoding.
