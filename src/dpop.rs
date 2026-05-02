@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
+// SPDX-License-Identifier: BSD-2-Clause
+
 use crate::claims::{CatDpopSettings, ConfirmationClaim};
 use crate::jwk::Jwk;
 use crate::{CatError, CryptographicAlgorithm, MoqtAction};

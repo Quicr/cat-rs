@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
+// SPDX-License-Identifier: BSD-2-Clause
+
 use crate::claims::*;
 use crate::{CatClaims, CatError, CatToken, CoreClaims, GeoCoordinate};
 use ciborium::Value;

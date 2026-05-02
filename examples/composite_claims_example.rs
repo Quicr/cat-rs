@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
+// SPDX-License-Identifier: BSD-2-Clause
+
 /*!
  * Composite Claims Example
  *
@@ -15,7 +18,8 @@ use cat_impl::token::CatTokenValidator;
 use chrono::{Duration, Utc};
 
 fn print_header(title: &str) {
-    println!("\n{}", "=".repeat(50));
+    println!("
+{}", "=".repeat(50));
     println!("{}", title);
     println!("{}", "=".repeat(50));
 }

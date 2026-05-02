@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
+// SPDX-License-Identifier: BSD-2-Clause
+
 // Note: qp-trie doesn't support Serialize/Deserialize, so we can't derive them
 use qp_trie::Trie;
 use std::collections::HashMap;

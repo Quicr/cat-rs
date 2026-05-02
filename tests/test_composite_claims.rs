@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
+// SPDX-License-Identifier: BSD-2-Clause
+
 use cat_impl::CatError;
 use cat_impl::claims::{
     CatToken, ClaimSet, CompositeClaim, CompositeClaims, CompositeOperator, composite_utils,
