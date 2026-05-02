@@ -1,6 +1,6 @@
 // Note: qp-trie doesn't support Serialize/Deserialize, so we can't derive them
-use std::collections::HashMap;
 use qp_trie::Trie;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrefixTrie {
@@ -33,32 +33,35 @@ impl PrefixTrie {
     pub fn search_prefix(&self, text: &str) -> Vec<&str> {
         let mut matches = Vec::new();
         let text_bytes = text.as_bytes();
-        
+
         // Get all entries that are prefixes of the text
         for (key, value) in self.trie.iter() {
             if text_bytes.starts_with(key) {
                 matches.push(value.as_str());
             }
         }
-        
+
         matches
     }
 
     pub fn contains_prefix(&self, text: &str) -> bool {
         let text_bytes = text.as_bytes();
-        
+
         // Check if any key in the trie is a prefix of the text
         for (key, _) in self.trie.iter() {
             if text_bytes.starts_with(key) {
                 return true;
             }
         }
-        
+
         false
     }
 
     pub fn get_all_patterns(&self) -> Vec<String> {
-        self.trie.keys().map(|k| String::from_utf8_lossy(k).into_owned()).collect()
+        self.trie
+            .keys()
+            .map(|k| String::from_utf8_lossy(k).into_owned())
+            .collect()
     }
 
     pub fn remove(&mut self, pattern: &str) -> bool {
@@ -107,7 +110,7 @@ impl SuffixTrie {
 
     pub fn search_suffix(&self, text: &str) -> Vec<&str> {
         let mut matches = Vec::new();
-        
+
         // Check if text ends with any of our stored patterns
         for (key, value) in self.trie.iter() {
             let pattern = std::str::from_utf8(key).unwrap();
@@ -115,7 +118,7 @@ impl SuffixTrie {
                 matches.push(value.as_str());
             }
         }
-        
+
         matches
     }
 
@@ -127,12 +130,15 @@ impl SuffixTrie {
                 return true;
             }
         }
-        
+
         false
     }
 
     pub fn get_all_patterns(&self) -> Vec<String> {
-        self.trie.keys().map(|k| String::from_utf8_lossy(k).into_owned()).collect()
+        self.trie
+            .keys()
+            .map(|k| String::from_utf8_lossy(k).into_owned())
+            .collect()
     }
 
     pub fn remove(&mut self, pattern: &str) -> bool {

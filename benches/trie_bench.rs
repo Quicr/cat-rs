@@ -1,5 +1,5 @@
 use cat_impl::*;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_patterns() -> Vec<String> {
     vec![
@@ -38,7 +38,7 @@ fn create_test_texts() -> Vec<String> {
 
 fn bench_prefix_trie_insert(c: &mut Criterion) {
     let patterns = create_test_patterns();
-    
+
     c.bench_function("prefix_trie_insert", |b| {
         b.iter(|| {
             let mut trie = PrefixTrie::new();
@@ -53,12 +53,12 @@ fn bench_prefix_trie_insert(c: &mut Criterion) {
 fn bench_prefix_trie_search(c: &mut Criterion) {
     let patterns = create_test_patterns();
     let texts = create_test_texts();
-    
+
     let mut trie = PrefixTrie::new();
     for (i, pattern) in patterns.iter().enumerate() {
         trie.insert(pattern, format!("value_{}", i));
     }
-    
+
     c.bench_function("prefix_trie_search", |b| {
         b.iter(|| {
             for text in &texts {
@@ -70,7 +70,7 @@ fn bench_prefix_trie_search(c: &mut Criterion) {
 
 fn bench_suffix_trie_insert(c: &mut Criterion) {
     let patterns = create_test_patterns();
-    
+
     c.bench_function("suffix_trie_insert", |b| {
         b.iter(|| {
             let mut trie = SuffixTrie::new();
@@ -85,12 +85,12 @@ fn bench_suffix_trie_insert(c: &mut Criterion) {
 fn bench_suffix_trie_search(c: &mut Criterion) {
     let patterns = create_test_patterns();
     let texts = create_test_texts();
-    
+
     let mut trie = SuffixTrie::new();
     for (i, pattern) in patterns.iter().enumerate() {
         trie.insert(pattern, format!("value_{}", i));
     }
-    
+
     c.bench_function("suffix_trie_search", |b| {
         b.iter(|| {
             for text in &texts {
@@ -102,15 +102,25 @@ fn bench_suffix_trie_search(c: &mut Criterion) {
 
 fn bench_uri_matcher(c: &mut Criterion) {
     let texts = create_test_texts();
-    
+
     let mut matcher = UriMatcher::new();
-    
+
     // Add different types of patterns
-    matcher.add_pattern(claims::UriPattern::Exact("https://api.example.com".to_string())).unwrap();
-    matcher.add_pattern(claims::UriPattern::Prefix("https://cdn.".to_string())).unwrap();
-    matcher.add_pattern(claims::UriPattern::Suffix(".json".to_string())).unwrap();
-    matcher.add_pattern(claims::UriPattern::Regex(r"^/api/v\d+/".to_string())).unwrap();
-    
+    matcher
+        .add_pattern(claims::UriPattern::Exact(
+            "https://api.example.com".to_string(),
+        ))
+        .unwrap();
+    matcher
+        .add_pattern(claims::UriPattern::Prefix("https://cdn.".to_string()))
+        .unwrap();
+    matcher
+        .add_pattern(claims::UriPattern::Suffix(".json".to_string()))
+        .unwrap();
+    matcher
+        .add_pattern(claims::UriPattern::Regex(r"^/api/v\d+/".to_string()))
+        .unwrap();
+
     c.bench_function("uri_matcher_matches", |b| {
         b.iter(|| {
             for text in &texts {
@@ -122,12 +132,10 @@ fn bench_uri_matcher(c: &mut Criterion) {
 
 fn bench_trie_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("trie_scaling");
-    
+
     for size in [10, 100, 1000].iter() {
-        let patterns: Vec<String> = (0..*size)
-            .map(|i| format!("pattern_{:04}", i))
-            .collect();
-        
+        let patterns: Vec<String> = (0..*size).map(|i| format!("pattern_{:04}", i)).collect();
+
         group.bench_with_input(
             BenchmarkId::new("prefix_trie_insert", size),
             size,
@@ -141,26 +149,27 @@ fn bench_trie_scaling(c: &mut Criterion) {
                 })
             },
         );
-        
+
         // Benchmark search with pre-built trie
         let mut trie = PrefixTrie::new();
         for (i, pattern) in patterns.iter().enumerate() {
             trie.insert(pattern, format!("value_{}", i));
         }
-        
+
         group.bench_with_input(
             BenchmarkId::new("prefix_trie_search", size),
             size,
             |b, _size| {
                 b.iter(|| {
-                    for pattern in patterns.iter().take(10) {  // Search first 10 patterns
+                    for pattern in patterns.iter().take(10) {
+                        // Search first 10 patterns
                         black_box(trie.search_prefix(black_box(pattern)));
                     }
                 })
             },
         );
     }
-    
+
     group.finish();
 }
 

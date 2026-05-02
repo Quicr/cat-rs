@@ -1,13 +1,13 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use cat_impl::claims::{
-    CatToken, CompositeClaim, CompositeOperator, CompositeClaims, composite_utils,
+    CatToken, CompositeClaim, CompositeClaims, CompositeOperator, composite_utils,
 };
 use cat_impl::token::CatTokenValidator;
 use chrono::{Duration, Utc};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn create_valid_token(issuer: &str) -> CatToken {
     let exp = Utc::now() + Duration::hours(1);
-    
+
     CatToken::new()
         .with_issuer(issuer)
         .with_audience(vec!["benchmark-audience".to_string()])
@@ -17,7 +17,7 @@ fn create_valid_token(issuer: &str) -> CatToken {
 
 fn create_expired_token(issuer: &str) -> CatToken {
     let exp = Utc::now() - Duration::hours(1);
-    
+
     CatToken::new()
         .with_issuer(issuer)
         .with_audience(vec!["benchmark-audience".to_string()])
@@ -27,7 +27,7 @@ fn create_expired_token(issuer: &str) -> CatToken {
 
 fn bench_or_composite_evaluation(c: &mut Criterion) {
     let mut group = c.benchmark_group("or_composite_evaluation");
-    
+
     for token_count in [1, 10, 50, 100, 500].iter() {
         group.bench_with_input(
             BenchmarkId::new("tokens", token_count),
@@ -35,15 +35,17 @@ fn bench_or_composite_evaluation(c: &mut Criterion) {
             |b, &token_count| {
                 let validator = CatTokenValidator::new();
                 let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-                    validator.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                    validator
+                        .validate(token)
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
                 };
-                
+
                 let tokens: Vec<CatToken> = (0..token_count)
                     .map(|i| create_valid_token(&format!("issuer{}", i)))
                     .collect();
-                
+
                 let or_composite = composite_utils::create_or_from_tokens(tokens);
-                
+
                 b.iter(|| {
                     let result = or_composite.evaluate(black_box(&validator_fn));
                     black_box(result);
@@ -51,13 +53,13 @@ fn bench_or_composite_evaluation(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn bench_and_composite_evaluation(c: &mut Criterion) {
     let mut group = c.benchmark_group("and_composite_evaluation");
-    
+
     for token_count in [1, 10, 50, 100, 500].iter() {
         group.bench_with_input(
             BenchmarkId::new("tokens", token_count),
@@ -65,15 +67,17 @@ fn bench_and_composite_evaluation(c: &mut Criterion) {
             |b, &token_count| {
                 let validator = CatTokenValidator::new();
                 let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-                    validator.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                    validator
+                        .validate(token)
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
                 };
-                
+
                 let tokens: Vec<CatToken> = (0..token_count)
                     .map(|i| create_valid_token(&format!("issuer{}", i)))
                     .collect();
-                
+
                 let and_composite = composite_utils::create_and_from_tokens(tokens);
-                
+
                 b.iter(|| {
                     let result = and_composite.evaluate(black_box(&validator_fn));
                     black_box(result);
@@ -81,13 +85,13 @@ fn bench_and_composite_evaluation(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn bench_nor_composite_evaluation(c: &mut Criterion) {
     let mut group = c.benchmark_group("nor_composite_evaluation");
-    
+
     for token_count in [1, 10, 50, 100, 500].iter() {
         group.bench_with_input(
             BenchmarkId::new("tokens", token_count),
@@ -95,16 +99,18 @@ fn bench_nor_composite_evaluation(c: &mut Criterion) {
             |b, &token_count| {
                 let validator = CatTokenValidator::new();
                 let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-                    validator.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                    validator
+                        .validate(token)
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
                 };
-                
+
                 // Create expired tokens for NOR to succeed
                 let tokens: Vec<CatToken> = (0..token_count)
                     .map(|i| create_expired_token(&format!("issuer{}", i)))
                     .collect();
-                
+
                 let nor_composite = composite_utils::create_nor_from_tokens(tokens);
-                
+
                 b.iter(|| {
                     let result = nor_composite.evaluate(black_box(&validator_fn));
                     black_box(result);
@@ -112,91 +118,85 @@ fn bench_nor_composite_evaluation(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn bench_nested_composite_evaluation(c: &mut Criterion) {
     let mut group = c.benchmark_group("nested_composite_evaluation");
-    
+
     for depth in [1, 2, 3, 4, 5].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("depth", depth),
-            depth,
-            |b, &depth| {
-                let validator = CatTokenValidator::new();
-                let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-                    validator.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-                };
-                
-                // Create nested structure with specified depth
-                let token = create_valid_token("base-issuer");
-                let mut composite = composite_utils::create_or_from_tokens(vec![token]);
-                
-                for _ in 1..depth {
-                    let mut new_composite = CompositeClaim::new(CompositeOperator::Or);
-                    new_composite.add_composite(composite);
-                    composite = new_composite;
-                }
-                
-                b.iter(|| {
-                    let result = composite.evaluate(black_box(&validator_fn));
-                    black_box(result);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("depth", depth), depth, |b, &depth| {
+            let validator = CatTokenValidator::new();
+            let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
+                validator
+                    .validate(token)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            };
+
+            // Create nested structure with specified depth
+            let token = create_valid_token("base-issuer");
+            let mut composite = composite_utils::create_or_from_tokens(vec![token]);
+
+            for _ in 1..depth {
+                let mut new_composite = CompositeClaim::new(CompositeOperator::Or);
+                new_composite.add_composite(composite);
+                composite = new_composite;
+            }
+
+            b.iter(|| {
+                let result = composite.evaluate(black_box(&validator_fn));
+                black_box(result);
+            });
+        });
     }
-    
+
     group.finish();
 }
 
 fn bench_composite_depth_calculation(c: &mut Criterion) {
     let mut group = c.benchmark_group("composite_depth_calculation");
-    
+
     for depth in [1, 2, 3, 4, 5, 8, 10].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("depth", depth),
-            depth,
-            |b, &depth| {
-                // Create nested structure with specified depth
-                let token = create_valid_token("base-issuer");
-                let mut composite = composite_utils::create_or_from_tokens(vec![token]);
-                
-                for _ in 1..depth {
-                    let mut new_composite = CompositeClaim::new(CompositeOperator::Or);
-                    new_composite.add_composite(composite);
-                    composite = new_composite;
-                }
-                
-                b.iter(|| {
-                    let depth = composite.get_depth();
-                    black_box(depth);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("depth", depth), depth, |b, &depth| {
+            // Create nested structure with specified depth
+            let token = create_valid_token("base-issuer");
+            let mut composite = composite_utils::create_or_from_tokens(vec![token]);
+
+            for _ in 1..depth {
+                let mut new_composite = CompositeClaim::new(CompositeOperator::Or);
+                new_composite.add_composite(composite);
+                composite = new_composite;
+            }
+
+            b.iter(|| {
+                let depth = composite.get_depth();
+                black_box(depth);
+            });
+        });
     }
-    
+
     group.finish();
 }
 
 fn bench_token_validation_with_composite(c: &mut Criterion) {
     let mut group = c.benchmark_group("token_validation_with_composite");
-    
+
     for token_count in [1, 5, 10, 25, 50].iter() {
         group.bench_with_input(
             BenchmarkId::new("composite_tokens", token_count),
             token_count,
             |b, &token_count| {
                 let validator = CatTokenValidator::new();
-                
+
                 let tokens: Vec<CatToken> = (0..token_count)
                     .map(|i| create_valid_token(&format!("issuer{}", i)))
                     .collect();
-                
+
                 let or_composite = composite_utils::create_or_from_tokens(tokens);
-                let token_with_composite = create_valid_token("main-issuer")
-                    .with_or_composite(or_composite);
-                
+                let token_with_composite =
+                    create_valid_token("main-issuer").with_or_composite(or_composite);
+
                 b.iter(|| {
                     let result = validator.validate(black_box(&token_with_composite));
                     let _ = black_box(result);
@@ -204,7 +204,7 @@ fn bench_token_validation_with_composite(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
@@ -212,18 +212,20 @@ fn bench_composite_claims_container(c: &mut Criterion) {
     c.bench_function("composite_claims_container", |b| {
         let validator = CatTokenValidator::new();
         let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-            validator.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            validator
+                .validate(token)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         };
-        
+
         let mut container = CompositeClaims::default();
         container.or_claim = Some(composite_utils::create_or_from_tokens(vec![
-            create_valid_token("issuer1")
+            create_valid_token("issuer1"),
         ]));
         container.and_claim = Some(composite_utils::create_and_from_tokens(vec![
             create_valid_token("issuer2"),
-            create_valid_token("issuer3")
+            create_valid_token("issuer3"),
         ]));
-        
+
         b.iter(|| {
             let has_composites = container.has_composites();
             let validation_result = container.validate_all(black_box(&validator_fn));
@@ -235,7 +237,7 @@ fn bench_composite_claims_container(c: &mut Criterion) {
 
 fn bench_composite_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("composite_creation");
-    
+
     for token_count in [1, 10, 50, 100].iter() {
         group.bench_with_input(
             BenchmarkId::new("tokens", token_count),
@@ -244,15 +246,16 @@ fn bench_composite_creation(c: &mut Criterion) {
                 let tokens: Vec<CatToken> = (0..token_count)
                     .map(|i| create_valid_token(&format!("issuer{}", i)))
                     .collect();
-                
+
                 b.iter(|| {
-                    let or_composite = composite_utils::create_or_from_tokens(black_box(tokens.clone()));
+                    let or_composite =
+                        composite_utils::create_or_from_tokens(black_box(tokens.clone()));
                     black_box(or_composite);
                 });
             },
         );
     }
-    
+
     group.finish();
 }
 
@@ -261,7 +264,7 @@ fn bench_claim_set_operations(c: &mut Criterion) {
         let token1 = create_valid_token("issuer1");
         let token2 = create_valid_token("issuer2");
         let composite = composite_utils::create_or_from_tokens(vec![token1, token2]);
-        
+
         b.iter(|| {
             let mut claim_composite = CompositeClaim::new(CompositeOperator::And);
             claim_composite.add_token(black_box(create_valid_token("test")));

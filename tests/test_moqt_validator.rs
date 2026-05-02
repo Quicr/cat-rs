@@ -1,5 +1,5 @@
+use cat_impl::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator, roles};
 use cat_impl::*;
-use cat_impl::moqt::{MoqtValidator, MoqtAuthRequest, MoqtScopeBuilder, roles};
 use chrono::{Duration, Utc};
 
 #[test]
@@ -38,10 +38,12 @@ fn test_moqt_validator_spec_example_exact_match() {
 
     for (ns, track) in test_cases {
         let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, &ns, &track);
-        assert!(!validator.authorize(&token, &request).authorized,
+        assert!(
+            !validator.authorize(&token, &request).authorized,
             "Should deny ns={:?} track={:?}",
             String::from_utf8_lossy(&ns),
-            String::from_utf8_lossy(&track));
+            String::from_utf8_lossy(&track)
+        );
     }
 }
 
@@ -76,24 +78,26 @@ fn test_moqt_validator_spec_example_prefix_match() {
 
     for (ns, track) in permit_cases {
         let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, ns, track);
-        assert!(validator.authorize(&token, &request).authorized,
+        assert!(
+            validator.authorize(&token, &request).authorized,
             "Should permit ns={:?} track={:?}",
             String::from_utf8_lossy(ns),
-            String::from_utf8_lossy(track));
+            String::from_utf8_lossy(track)
+        );
     }
 
     // Should prohibit
-    let deny_cases: Vec<(&[u8], &[u8])> = vec![
-        (b"example.com", b"/alice"),
-        (b"other.com", b"/bob"),
-    ];
+    let deny_cases: Vec<(&[u8], &[u8])> =
+        vec![(b"example.com", b"/alice"), (b"other.com", b"/bob")];
 
     for (ns, track) in deny_cases {
         let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, ns, track);
-        assert!(!validator.authorize(&token, &request).authorized,
+        assert!(
+            !validator.authorize(&token, &request).authorized,
             "Should deny ns={:?} track={:?}",
             String::from_utf8_lossy(ns),
-            String::from_utf8_lossy(track));
+            String::from_utf8_lossy(track)
+        );
     }
 }
 
@@ -113,7 +117,8 @@ fn test_moqt_validator_multiple_scopes() {
     let validator = MoqtValidator::new();
 
     // Publisher can publish to /live/
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/live/stream1");
+    let request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/live/stream1");
     let result = validator.authorize(&token, &request);
     assert!(result.authorized);
     assert_eq!(result.matched_scope_index, Some(0));
@@ -195,11 +200,13 @@ fn test_moqt_validator_claims_validation() {
         .build();
 
     // Validator that requires at least 60 seconds
-    let validator = MoqtValidator::new()
-        .with_min_revalidation_interval(60.0);
+    let validator = MoqtValidator::new().with_min_revalidation_interval(60.0);
 
     let result = validator.validate_moqt_claims(&token);
-    assert!(matches!(result, Err(CatError::RevalidationIntervalTooShort)));
+    assert!(matches!(
+        result,
+        Err(CatError::RevalidationIntervalTooShort)
+    ));
 
     // Token with acceptable revalidation interval
     let token2 = CatTokenBuilder::new()
@@ -279,9 +286,7 @@ fn test_moqt_roles() {
 #[test]
 fn test_moqt_default_blocked() {
     // "The default for all actions is 'Blocked'"
-    let token = CatTokenBuilder::new()
-        .issuer("https://test.com")
-        .build(); // No MOQT scopes
+    let token = CatTokenBuilder::new().issuer("https://test.com").build(); // No MOQT scopes
 
     let validator = MoqtValidator::new();
 

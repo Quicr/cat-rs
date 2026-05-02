@@ -1,7 +1,7 @@
 use crate::CatError;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use p256::ecdsa::VerifyingKey;
 use p256::EncodedPoint;
+use p256::ecdsa::VerifyingKey;
 use rsa::RsaPublicKey;
 use rsa::traits::PublicKeyParts;
 use serde::{Deserialize, Serialize};
@@ -67,11 +67,17 @@ impl Jwk {
     fn canonical_json(&self) -> Result<String, CatError> {
         match self.kty.as_str() {
             "EC" => {
-                let crv = self.crv.as_ref()
+                let crv = self
+                    .crv
+                    .as_ref()
                     .ok_or_else(|| CatError::InvalidClaimValue("EC JWK missing crv".to_string()))?;
-                let x = self.x.as_ref()
+                let x = self
+                    .x
+                    .as_ref()
                     .ok_or_else(|| CatError::InvalidClaimValue("EC JWK missing x".to_string()))?;
-                let y = self.y.as_ref()
+                let y = self
+                    .y
+                    .as_ref()
                     .ok_or_else(|| CatError::InvalidClaimValue("EC JWK missing y".to_string()))?;
                 Ok(format!(
                     r#"{{"crv":"{}","kty":"EC","x":"{}","y":"{}"}}"#,
@@ -79,16 +85,20 @@ impl Jwk {
                 ))
             }
             "RSA" => {
-                let e = self.e.as_ref()
+                let e = self
+                    .e
+                    .as_ref()
                     .ok_or_else(|| CatError::InvalidClaimValue("RSA JWK missing e".to_string()))?;
-                let n = self.n.as_ref()
+                let n = self
+                    .n
+                    .as_ref()
                     .ok_or_else(|| CatError::InvalidClaimValue("RSA JWK missing n".to_string()))?;
-                Ok(format!(
-                    r#"{{"e":"{}","kty":"RSA","n":"{}"}}"#,
-                    e, n
-                ))
+                Ok(format!(r#"{{"e":"{}","kty":"RSA","n":"{}"}}"#, e, n))
             }
-            _ => Err(CatError::UnsupportedAlgorithm(format!("Unsupported key type: {}", self.kty))),
+            _ => Err(CatError::UnsupportedAlgorithm(format!(
+                "Unsupported key type: {}",
+                self.kty
+            ))),
         }
     }
 
@@ -100,14 +110,20 @@ impl Jwk {
             return Err(CatError::InvalidClaimValue("Not a P-256 curve".to_string()));
         }
 
-        let x = self.x.as_ref()
+        let x = self
+            .x
+            .as_ref()
             .ok_or_else(|| CatError::InvalidClaimValue("Missing x coordinate".to_string()))?;
-        let y = self.y.as_ref()
+        let y = self
+            .y
+            .as_ref()
             .ok_or_else(|| CatError::InvalidClaimValue("Missing y coordinate".to_string()))?;
 
-        let x_bytes = URL_SAFE_NO_PAD.decode(x)
+        let x_bytes = URL_SAFE_NO_PAD
+            .decode(x)
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
-        let y_bytes = URL_SAFE_NO_PAD.decode(y)
+        let y_bytes = URL_SAFE_NO_PAD
+            .decode(y)
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
 
         let mut uncompressed = vec![0x04];

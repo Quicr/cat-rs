@@ -1,6 +1,6 @@
-use crate::{CatError, CryptographicAlgorithm, MoqtAction};
 use crate::claims::{CatDpopSettings, ConfirmationClaim};
 use crate::jwk::Jwk;
+use crate::{CatError, CryptographicAlgorithm, MoqtAction};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -216,11 +216,14 @@ impl DpopProof {
             return Err(CatError::InvalidTokenFormat);
         }
 
-        let header_json = URL_SAFE_NO_PAD.decode(parts[0])
+        let header_json = URL_SAFE_NO_PAD
+            .decode(parts[0])
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
-        let payload_json = URL_SAFE_NO_PAD.decode(parts[1])
+        let payload_json = URL_SAFE_NO_PAD
+            .decode(parts[1])
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
-        let signature = URL_SAFE_NO_PAD.decode(parts[2])
+        let signature = URL_SAFE_NO_PAD
+            .decode(parts[2])
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
 
         let header: DpopHeader = serde_json::from_slice(&header_json)
@@ -269,7 +272,9 @@ impl DpopValidator {
         }
 
         if !proof.payload.is_valid() {
-            return Err(CatError::DpopValidationFailed("Invalid payload".to_string()));
+            return Err(CatError::DpopValidationFailed(
+                "Invalid payload".to_string(),
+            ));
         }
 
         if !proof.payload.is_fresh(self.settings.effective_window()) {
@@ -277,9 +282,10 @@ impl DpopValidator {
         }
 
         if proof.payload.actx.action != expected_action as i32 {
-            return Err(CatError::DpopValidationFailed(
-                format!("Action mismatch: expected {:?}", expected_action)
-            ));
+            return Err(CatError::DpopValidationFailed(format!(
+                "Action mismatch: expected {:?}",
+                expected_action
+            )));
         }
 
         let jwk_thumbprint = proof.header.jwk.thumbprint()?;
@@ -322,13 +328,16 @@ impl DpopValidator {
             .unwrap_or(Duration::ZERO)
             .as_secs() as i64;
 
-        self.used_jtis.retain(|_, &mut iat| {
-            now - iat < self.jti_expiry_seconds
-        });
+        self.used_jtis
+            .retain(|_, &mut iat| now - iat < self.jti_expiry_seconds);
     }
 }
 
-pub fn construct_moqt_uri(endpoint: &str, namespace: Option<&[u8]>, track: Option<&[u8]>) -> String {
+pub fn construct_moqt_uri(
+    endpoint: &str,
+    namespace: Option<&[u8]>,
+    track: Option<&[u8]>,
+) -> String {
     let mut uri = format!("moqt://{}", endpoint);
 
     if let Some(ns) = namespace {
@@ -360,13 +369,8 @@ mod tests {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
         let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
 
-        let mut proof = DpopProof::create_for_moqt(
-            MoqtAction::Subscribe,
-            b"namespace",
-            b"track",
-            "ES256",
-            jwk,
-        );
+        let mut proof =
+            DpopProof::create_for_moqt(MoqtAction::Subscribe, b"namespace", b"track", "ES256", jwk);
 
         proof.sign(&alg).unwrap();
         assert!(!proof.signature.is_empty());
@@ -384,21 +388,18 @@ mod tests {
         let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
         let thumbprint = jwk.thumbprint().unwrap();
 
-        let mut proof = DpopProof::create_for_moqt(
-            MoqtAction::Subscribe,
-            b"namespace",
-            b"track",
-            "ES256",
-            jwk,
-        )
-        .with_jti(generate_jti());
+        let mut proof =
+            DpopProof::create_for_moqt(MoqtAction::Subscribe, b"namespace", b"track", "ES256", jwk)
+                .with_jti(generate_jti());
 
         proof.sign(&alg).unwrap();
 
         let settings = CatDpopSettings::new().with_window(300);
         let mut validator = DpopValidator::new(settings);
 
-        validator.validate(&proof, MoqtAction::Subscribe, &thumbprint).unwrap();
+        validator
+            .validate(&proof, MoqtAction::Subscribe, &thumbprint)
+            .unwrap();
     }
 
     #[test]
@@ -413,11 +414,8 @@ mod tests {
 
     #[test]
     fn test_authorization_context() {
-        let actx = AuthorizationContext::new_moqt(
-            MoqtAction::Publish,
-            b"my-namespace",
-            b"my-track",
-        );
+        let actx =
+            AuthorizationContext::new_moqt(MoqtAction::Publish, b"my-namespace", b"my-track");
 
         assert_eq!(actx.ctx_type, "moqt");
         assert_eq!(actx.action, MoqtAction::Publish as i32);

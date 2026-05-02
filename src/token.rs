@@ -105,23 +105,26 @@ impl CatTokenValidator {
         if token.composite.has_composites() {
             // Check nesting depth limit (spec requires minimum support of 4 levels)
             const MAX_NESTING_DEPTH: usize = 10; // Conservative limit to prevent stack overflow
-            
+
             let depth = token.composite.get_max_depth();
             if depth > MAX_NESTING_DEPTH {
                 return Err(CatError::InvalidClaimValue(
-                    "Composite claim nesting depth exceeds maximum".to_string()
+                    "Composite claim nesting depth exceeds maximum".to_string(),
                 ));
             }
-            
+
             // Validate all composite claims using this validator
             let validator_fn = |token: &CatToken| -> Result<(), Box<dyn std::error::Error>> {
-                self.validate(token).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                self.validate(token)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
             };
-            
-            token.composite.validate_all(&validator_fn)
+
+            token
+                .composite
+                .validate_all(&validator_fn)
                 .map_err(|e| CatError::InvalidClaimValue(e.to_string()))?;
         }
-        
+
         Ok(())
     }
 }

@@ -1,13 +1,13 @@
 use crate::{
-    CatError, CatToken, MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch,
-    DpopProof, DpopValidator, CatDpopSettings, confirmation_matches_jwk,
+    BinaryMatch, CatDpopSettings, CatError, CatToken, DpopProof, DpopValidator, MoqtAction,
+    MoqtScope, NamespaceMatch, confirmation_matches_jwk,
 };
 
 /// MOQT authorization request
 #[derive(Debug, Clone)]
 pub struct MoqtAuthRequest {
     pub action: MoqtAction,
-    pub namespace: Vec<Vec<u8>>,  // Namespace tuple elements
+    pub namespace: Vec<Vec<u8>>, // Namespace tuple elements
     pub track: Vec<u8>,
     pub dpop_proof: Option<DpopProof>,
 }
@@ -142,9 +142,10 @@ impl MoqtValidator {
             for scope in scopes {
                 for action in &scope.actions {
                     if !MoqtAction::is_valid(*action as i32) {
-                        return Err(CatError::InvalidClaimValue(
-                            format!("Invalid MOQT action: {:?}", action)
-                        ));
+                        return Err(CatError::InvalidClaimValue(format!(
+                            "Invalid MOQT action: {:?}",
+                            action
+                        )));
                     }
                 }
             }
@@ -193,16 +194,16 @@ impl MoqtValidator {
 
         // If token has DPoP binding, validate the proof
         if let Some(ref cnf) = token.dpop.cnf {
-            let proof = request.dpop_proof.as_ref()
-                .ok_or_else(|| CatError::DpopValidationFailed(
-                    "Token requires DPoP proof but none provided".to_string()
-                ))?;
+            let proof = request.dpop_proof.as_ref().ok_or_else(|| {
+                CatError::DpopValidationFailed(
+                    "Token requires DPoP proof but none provided".to_string(),
+                )
+            })?;
 
             // Validate DPoP proof
-            let validator = self.dpop_validator.as_mut()
-                .ok_or_else(|| CatError::DpopValidationFailed(
-                    "DPoP validation not configured".to_string()
-                ))?;
+            let validator = self.dpop_validator.as_mut().ok_or_else(|| {
+                CatError::DpopValidationFailed("DPoP validation not configured".to_string())
+            })?;
 
             // Check key binding
             if !confirmation_matches_jwk(cnf, &proof.header.jwk)? {
@@ -280,7 +281,11 @@ impl MoqtScopeBuilder {
 
     /// Add subscriber actions (SubscribeNamespace, Subscribe, Fetch)
     pub fn subscriber(self) -> Self {
-        self.actions(&[MoqtAction::SubscribeNamespace, MoqtAction::Subscribe, MoqtAction::Fetch])
+        self.actions(&[
+            MoqtAction::SubscribeNamespace,
+            MoqtAction::Subscribe,
+            MoqtAction::Fetch,
+        ])
     }
 
     /// Add all actions
@@ -300,19 +305,22 @@ impl MoqtScopeBuilder {
 
     /// Add exact namespace match
     pub fn namespace_exact(mut self, ns: &[u8]) -> Self {
-        self.namespace_matches.push(NamespaceMatch::exact(ns.to_vec()));
+        self.namespace_matches
+            .push(NamespaceMatch::exact(ns.to_vec()));
         self
     }
 
     /// Add prefix namespace match
     pub fn namespace_prefix(mut self, prefix: &[u8]) -> Self {
-        self.namespace_matches.push(NamespaceMatch::prefix(prefix.to_vec()));
+        self.namespace_matches
+            .push(NamespaceMatch::prefix(prefix.to_vec()));
         self
     }
 
     /// Add suffix namespace match
     pub fn namespace_suffix(mut self, suffix: &[u8]) -> Self {
-        self.namespace_matches.push(NamespaceMatch::suffix(suffix.to_vec()));
+        self.namespace_matches
+            .push(NamespaceMatch::suffix(suffix.to_vec()));
         self
     }
 
@@ -403,11 +411,8 @@ mod tests {
 
     #[test]
     fn test_moqt_auth_request() {
-        let request = MoqtAuthRequest::simple(
-            MoqtAction::Publish,
-            b"example.com",
-            b"/stream/video",
-        );
+        let request =
+            MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/video");
 
         assert_eq!(request.action, MoqtAction::Publish);
         assert_eq!(request.namespace, vec![b"example.com".to_vec()]);
@@ -430,7 +435,8 @@ mod tests {
         let validator = MoqtValidator::new();
 
         // Should allow
-        let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/video");
+        let request =
+            MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/video");
         let result = validator.authorize(&token, &request);
         assert!(result.authorized);
 
@@ -505,11 +511,13 @@ mod tests {
             .moqt_reval(60.0) // 1 minute
             .build();
 
-        let validator = MoqtValidator::new()
-            .with_min_revalidation_interval(300.0); // 5 minutes minimum
+        let validator = MoqtValidator::new().with_min_revalidation_interval(300.0); // 5 minutes minimum
 
         let result = validator.validate_moqt_claims(&token);
-        assert!(matches!(result, Err(CatError::RevalidationIntervalTooShort)));
+        assert!(matches!(
+            result,
+            Err(CatError::RevalidationIntervalTooShort)
+        ));
     }
 
     #[test]

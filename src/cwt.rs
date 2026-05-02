@@ -206,9 +206,10 @@ impl Cwt {
 
         // DPoP claims - cnf is a map with jkt (key 3) containing the JWK thumbprint
         if let Some(ref cnf) = self.payload.dpop.cnf {
-            let cnf_map = vec![
-                (Value::Integer(CNF_JKT.into()), Value::Bytes(cnf.jkt.clone()))
-            ];
+            let cnf_map = vec![(
+                Value::Integer(CNF_JKT.into()),
+                Value::Bytes(cnf.jkt.clone()),
+            )];
             claims_map.insert(CLAIM_CNF, Value::Map(cnf_map));
         }
 
@@ -216,11 +217,17 @@ impl Cwt {
         if let Some(ref catdpop) = self.payload.dpop.catdpop {
             let mut dpop_map = Vec::new();
             if let Some(window) = catdpop.window {
-                dpop_map.push((Value::Integer(CATDPOP_WINDOW.into()), Value::Integer(window.into())));
+                dpop_map.push((
+                    Value::Integer(CATDPOP_WINDOW.into()),
+                    Value::Integer(window.into()),
+                ));
             }
             if let Some(honor_jti) = catdpop.honor_jti {
                 let jti_value = if honor_jti { 1i64 } else { 0i64 };
-                dpop_map.push((Value::Integer(CATDPOP_HONOR_JTI.into()), Value::Integer(jti_value.into())));
+                dpop_map.push((
+                    Value::Integer(CATDPOP_HONOR_JTI.into()),
+                    Value::Integer(jti_value.into()),
+                ));
             }
             if !dpop_map.is_empty() {
                 claims_map.insert(CLAIM_CATDPOP, Value::Map(dpop_map));
@@ -242,7 +249,9 @@ impl Cwt {
             let scopes_array: Vec<Value> = moqt_scopes
                 .iter()
                 .map(|scope| {
-                    let actions: Vec<Value> = scope.actions.iter()
+                    let actions: Vec<Value> = scope
+                        .actions
+                        .iter()
                         .map(|action| Value::Integer((*action as i32).into()))
                         .collect();
 
@@ -250,7 +259,9 @@ impl Cwt {
 
                     // Add namespace matches if present
                     if !scope.namespace_matches.is_empty() {
-                        let ns_matches: Vec<Value> = scope.namespace_matches.iter()
+                        let ns_matches: Vec<Value> = scope
+                            .namespace_matches
+                            .iter()
                             .map(encode_namespace_match)
                             .collect();
                         scope_array.push(Value::Array(ns_matches));
@@ -351,7 +362,10 @@ fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatE
             match match_type {
                 1 => Ok(BinaryMatch::prefix(pattern)),
                 2 => Ok(BinaryMatch::suffix(pattern)),
-                _ => Err(CatError::InvalidClaimValue(format!("Unknown match type: {}", match_type))),
+                _ => Err(CatError::InvalidClaimValue(format!(
+                    "Unknown match type: {}",
+                    match_type
+                ))),
             }
         }
         _ => Err(CatError::InvalidTokenFormat),
@@ -367,7 +381,6 @@ fn decode_namespace_match(value: &Value) -> Result<crate::claims::NamespaceMatch
 }
 
 impl Cwt {
-
     pub fn decode_payload(cbor_data: &[u8]) -> Result<CatToken, CatError> {
         let value: Value = ciborium::de::from_reader(cbor_data)
             .map_err(|e| CatError::InvalidCbor(e.to_string()))?;
@@ -708,7 +721,8 @@ impl Cwt {
                                 match key_val {
                                     0 => {
                                         if let Value::Integer(window) = v {
-                                            settings.window = Some(window.try_into().unwrap_or(300));
+                                            settings.window =
+                                                Some(window.try_into().unwrap_or(300));
                                         }
                                     }
                                     1 => {
@@ -749,7 +763,9 @@ impl Cwt {
                                 if let Value::Array(ref actions_array) = scope_array[0] {
                                     for action_value in actions_array {
                                         if let Value::Integer(action_int) = action_value {
-                                            if let Ok(action_i32) = TryInto::<i32>::try_into(*action_int) {
+                                            if let Ok(action_i32) =
+                                                TryInto::<i32>::try_into(*action_int)
+                                            {
                                                 actions.push(MoqtAction::from(action_i32));
                                             }
                                         }
@@ -763,7 +779,8 @@ impl Cwt {
                                 if scope_array.len() > 1 {
                                     if let Value::Array(ref ns_array) = scope_array[1] {
                                         for ns_value in ns_array {
-                                            namespace_matches.push(decode_namespace_match(ns_value)?);
+                                            namespace_matches
+                                                .push(decode_namespace_match(ns_value)?);
                                         }
                                     }
                                 }

@@ -208,22 +208,29 @@ impl CompositeClaim {
     }
 
     /// Evaluate this composite claim against a validation context
-    pub fn evaluate<V>(&self, validator: &V) -> bool 
+    pub fn evaluate<V>(&self, validator: &V) -> bool
     where
         V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
     {
         match self.op {
             CompositeOperator::Or => {
                 // At least one claim set must be acceptable
-                self.claims.iter().any(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                self.claims
+                    .iter()
+                    .any(|claim_set| self.evaluate_claim_set(claim_set, validator))
             }
             CompositeOperator::Nor => {
                 // No claim sets can be acceptable
-                !self.claims.iter().any(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                !self
+                    .claims
+                    .iter()
+                    .any(|claim_set| self.evaluate_claim_set(claim_set, validator))
             }
             CompositeOperator::And => {
                 // All claim sets must be acceptable
-                self.claims.iter().all(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                self.claims
+                    .iter()
+                    .all(|claim_set| self.evaluate_claim_set(claim_set, validator))
             }
         }
     }
@@ -276,26 +283,26 @@ impl CompositeClaims {
                 return Err("OR composite claim validation failed".into());
             }
         }
-        
+
         if let Some(ref nor_claim) = self.nor_claim {
             if !nor_claim.evaluate(validator) {
                 return Err("NOR composite claim validation failed".into());
             }
         }
-        
+
         if let Some(ref and_claim) = self.and_claim {
             if !and_claim.evaluate(validator) {
                 return Err("AND composite claim validation failed".into());
             }
         }
-        
+
         Ok(())
     }
 
     /// Get the maximum nesting depth across all composite claims
     pub fn get_max_depth(&self) -> usize {
         let mut max_depth = 0;
-        
+
         if let Some(ref claim) = self.or_claim {
             max_depth = max_depth.max(claim.get_depth());
         }
@@ -305,7 +312,7 @@ impl CompositeClaims {
         if let Some(ref claim) = self.and_claim {
             max_depth = max_depth.max(claim.get_depth());
         }
-        
+
         max_depth
     }
 }
@@ -338,10 +345,10 @@ pub enum NetworkIdentifier {
 pub enum MoqtAction {
     ClientSetup = 0,
     ServerSetup = 1,
-    PublishNamespace = 2,  // Was Announce per spec update
+    PublishNamespace = 2, // Was Announce per spec update
     SubscribeNamespace = 3,
     Subscribe = 4,
-    RequestUpdate = 5,     // Was SubscribeUpdate per spec update
+    RequestUpdate = 5, // Was SubscribeUpdate per spec update
     Publish = 6,
     Fetch = 7,
     TrackStatus = 8,
@@ -501,7 +508,7 @@ impl NamespaceMatch {
 
     pub fn matches(&self, tuple_element: Option<&[u8]>) -> bool {
         match (self, tuple_element) {
-            (NamespaceMatch::Nil, None) => true,  // Nil matches end of list
+            (NamespaceMatch::Nil, None) => true, // Nil matches end of list
             (NamespaceMatch::Nil, Some(_)) => false,
             (NamespaceMatch::Match(_), None) => false,
             (NamespaceMatch::Match(m), Some(data)) => m.matches(data),
@@ -862,9 +869,9 @@ impl CatToken {
     pub fn allows_moqt_action(&self, action: &MoqtAction, namespace: &[u8], track: &[u8]) -> bool {
         if let Some(ref scopes) = self.moqt.moqt {
             scopes.iter().any(|scope| {
-                scope.allows_action(action) && 
-                scope.matches_namespace(namespace) &&
-                scope.matches_track(track)
+                scope.allows_action(action)
+                    && scope.matches_namespace(namespace)
+                    && scope.matches_track(track)
             })
         } else {
             false // Default to blocked if no MOQT claims

@@ -77,7 +77,10 @@ fn test_comprehensive_token_creation() {
     );
 
     assert!(token.dpop.cnf.is_some());
-    assert_eq!(token.dpop.cnf.as_ref().unwrap().jkt, b"jwk-thumbprint-xyz".to_vec());
+    assert_eq!(
+        token.dpop.cnf.as_ref().unwrap().jkt,
+        b"jwk-thumbprint-xyz".to_vec()
+    );
     assert!(token.dpop.catdpop.is_some());
     assert_eq!(token.dpop.catdpop.as_ref().unwrap().window, Some(300));
 
@@ -379,7 +382,11 @@ fn test_maximal_token() {
         .with_interface_data("maximal-interface-data")
         // All DPoP claims
         .with_confirmation(b"maximal-confirmation-key".to_vec())
-        .with_dpop_settings(cat_impl::CatDpopSettings::new().with_window(600).with_jti_processing(true))
+        .with_dpop_settings(
+            cat_impl::CatDpopSettings::new()
+                .with_window(600)
+                .with_jti_processing(true),
+        )
         // All request claims
         .with_interface_claim("maximal-interface")
         .with_request_claim("maximal-request");
