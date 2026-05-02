@@ -1,7 +1,7 @@
 # CAT-4-MOQT
 
 [![CI](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml/badge.svg)](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
 Rust implementation of [Common Access Token for Media Over QUIC Transport (CAT-4-MOQT)](https://github.com/moq-wg/CAT-4-MOQT) based on [CTA-5007-B](https://shop.cta.tech/products/common-access-token).
 
@@ -85,4 +85,4 @@ let ro_scope = roles::read_only(b"example.com", b"/archive/");
 
 ## License
 
-MIT
+BSD-2-Clause
