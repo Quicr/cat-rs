@@ -3,11 +3,7 @@
 [![CI](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml/badge.svg)](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-| Platform | Status |
-|----------|--------|
-| Linux | ![Ubuntu](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=ubuntu) |
-| macOS | ![macOS](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=macos) |
-| Windows | ![Windows](https://img.shields.io/github/actions/workflow/status/suhasHere/cat.rs/ci.yml?branch=main&label=windows) |
+Tested on Linux, macOS, and Windows.
 
 ##  Overview
 
