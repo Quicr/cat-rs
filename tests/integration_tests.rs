@@ -422,14 +422,14 @@ fn test_geographic_validation() {
 
 #[test]
 fn test_moqt_claims_creation() {
-    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch};
 
-    let namespace_match = BinaryMatch::exact(b"example.com".to_vec());
+    let namespace_match = NamespaceMatch::exact(b"example.com".to_vec());
     let track_match = BinaryMatch::prefix(b"/bob".to_vec());
 
     let scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::SubscribeNamespace,
             MoqtAction::Publish,
             MoqtAction::Fetch,
@@ -453,12 +453,12 @@ fn test_moqt_claims_creation() {
     let scopes = token.moqt.moqt.as_ref().unwrap();
     assert_eq!(scopes.len(), 1);
     assert_eq!(scopes[0].actions.len(), 4);
-    assert!(scopes[0].actions.contains(&MoqtAction::Announce));
+    assert!(scopes[0].actions.contains(&MoqtAction::PublishNamespace));
     assert!(scopes[0].actions.contains(&MoqtAction::Publish));
 
     // Test action authorization
     assert!(token.allows_moqt_action(
-        &MoqtAction::Announce,
+        &MoqtAction::PublishNamespace,
         b"example.com",
         b"/bob/stream1"
     ));
@@ -470,13 +470,13 @@ fn test_moqt_claims_creation() {
     ));
 
     assert!(!token.allows_moqt_action(
-        &MoqtAction::Announce,
+        &MoqtAction::PublishNamespace,
         b"other.com",  // Doesn't match namespace
         b"/bob/stream1"
     ));
 
     assert!(!token.allows_moqt_action(
-        &MoqtAction::Announce,
+        &MoqtAction::PublishNamespace,
         b"example.com",
         b"/alice/stream1"  // Doesn't match track prefix
     ));
@@ -507,12 +507,7 @@ fn test_moqt_binary_match() {
     assert!(!suffix_match.matches(b"video.mp3"));
     assert!(!suffix_match.matches(b"video.mp4.bak"));
 
-    // Test contains match
-    let contains_match = BinaryMatch::contains(b"live".to_vec());
-    assert!(contains_match.matches(b"live"));
-    assert!(contains_match.matches(b"livestream"));
-    assert!(contains_match.matches(b"stream-live-hd"));
-    assert!(!contains_match.matches(b"recorded"));
+    // Note: contains match was removed from spec, now only exact/prefix/suffix are supported
 
     // Test empty match (should match everything)
     let empty_match = BinaryMatch::default();
@@ -523,19 +518,19 @@ fn test_moqt_binary_match() {
 
 #[test]
 fn test_moqt_token_encoding_decoding() {
-    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch};
 
     let key = HmacSha256Algorithm::generate_key();
     let algorithm = HmacSha256Algorithm::new(&key);
 
     let scope1 = MoqtScope::new()
-        .with_actions(vec![MoqtAction::Announce, MoqtAction::Publish])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::Publish])
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/bob".to_vec()));
 
     let scope2 = MoqtScope::new()
         .with_actions(vec![MoqtAction::Fetch])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::exact(b"logs/12345/bob".to_vec()));
 
     let token = CatTokenBuilder::new()
@@ -559,7 +554,7 @@ fn test_moqt_token_encoding_decoding() {
 
     // Verify first scope
     assert_eq!(decoded_scopes[0].actions.len(), 2);
-    assert!(decoded_scopes[0].actions.contains(&MoqtAction::Announce));
+    assert!(decoded_scopes[0].actions.contains(&MoqtAction::PublishNamespace));
     assert!(decoded_scopes[0].actions.contains(&MoqtAction::Publish));
     assert!(decoded_scopes[0].matches_namespace(b"example.com"));
     assert!(decoded_scopes[0].matches_track(b"/bob/stream1"));
@@ -573,17 +568,17 @@ fn test_moqt_token_encoding_decoding() {
 
 #[test]
 fn test_moqt_multiple_scopes_authorization() {
-    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch};
 
     // Create multiple scopes with different permissions
     let scope1 = MoqtScope::new()
-        .with_actions(vec![MoqtAction::Announce, MoqtAction::SubscribeNamespace])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::SubscribeNamespace])
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/public".to_vec()));
 
     let scope2 = MoqtScope::new()
         .with_actions(vec![MoqtAction::Publish, MoqtAction::Fetch])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/private".to_vec()));
 
     let token = CatTokenBuilder::new()
@@ -595,7 +590,7 @@ fn test_moqt_multiple_scopes_authorization() {
 
     // Test permissions for public namespace (scope1)
     assert!(token.allows_moqt_action(
-        &MoqtAction::Announce,
+        &MoqtAction::PublishNamespace,
         b"example.com",
         b"/public/stream1"
     ));
@@ -622,14 +617,14 @@ fn test_moqt_multiple_scopes_authorization() {
         b"/private/data"
     ));
     assert!(!token.allows_moqt_action(
-        &MoqtAction::Announce,  // Not allowed in scope2
+        &MoqtAction::PublishNamespace,  // Not allowed in scope2
         b"example.com",
         b"/private/stream1"
     ));
 
     // Test no permissions for other paths
     assert!(!token.allows_moqt_action(
-        &MoqtAction::Announce,
+        &MoqtAction::PublishNamespace,
         b"example.com",
         b"/restricted/stream1"  // No matching scope
     ));
@@ -642,10 +637,10 @@ fn test_moqt_action_conversion() {
     // Test From<i32> conversion
     assert_eq!(MoqtAction::from(0), MoqtAction::ClientSetup);
     assert_eq!(MoqtAction::from(1), MoqtAction::ServerSetup);
-    assert_eq!(MoqtAction::from(2), MoqtAction::Announce);
+    assert_eq!(MoqtAction::from(2), MoqtAction::PublishNamespace);
     assert_eq!(MoqtAction::from(3), MoqtAction::SubscribeNamespace);
     assert_eq!(MoqtAction::from(4), MoqtAction::Subscribe);
-    assert_eq!(MoqtAction::from(5), MoqtAction::SubscribeUpdate);
+    assert_eq!(MoqtAction::from(5), MoqtAction::RequestUpdate);
     assert_eq!(MoqtAction::from(6), MoqtAction::Publish);
     assert_eq!(MoqtAction::from(7), MoqtAction::Fetch);
     assert_eq!(MoqtAction::from(8), MoqtAction::TrackStatus);
@@ -656,17 +651,17 @@ fn test_moqt_action_conversion() {
 
 #[test]
 fn test_moqt_spec_example_exact_match() {
-    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch};
     
     // Example from spec: Allow with an exact match "example.com/bob"
     let scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::SubscribeNamespace,
             MoqtAction::Publish,
             MoqtAction::Fetch,
         ])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::exact(b"/bob".to_vec()));
 
     let token = CatTokenBuilder::new()
@@ -675,31 +670,31 @@ fn test_moqt_spec_example_exact_match() {
         .build();
 
     // Should permit
-    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob"));
+    assert!(token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob"));
 
     // Should prohibit
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b""));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/123"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/alice"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/logs"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"alternate/example.com", b"/bob"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"12345", b""));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example", b".com/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob/123"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/alice"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob/logs"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"alternate/example.com", b"/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"12345", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example", b".com/bob"));
 }
 
 #[test] 
 fn test_moqt_spec_example_prefix_match() {
-    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch};
+    use cat_impl::claims::{MoqtAction, MoqtScope, BinaryMatch, NamespaceMatch};
     
     // Example from spec: Allow with a prefix match "example.com/bob"
     let scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::SubscribeNamespace,
             MoqtAction::Publish,
             MoqtAction::Fetch,
         ])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/bob".to_vec()));
 
     let token = CatTokenBuilder::new()
@@ -708,14 +703,14 @@ fn test_moqt_spec_example_prefix_match() {
         .build();
 
     // Should permit
-    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob"));
-    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/123"));
-    assert!(token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/bob/logs"));
+    assert!(token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob"));
+    assert!(token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob/123"));
+    assert!(token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/bob/logs"));
 
     // Should prohibit
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b""));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example.com", b"/alice"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"alternate/example.com", b"/bob"));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"12345", b""));
-    assert!(!token.allows_moqt_action(&MoqtAction::Announce, b"example", b".com/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example.com", b"/alice"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"alternate/example.com", b"/bob"));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"12345", b""));
+    assert!(!token.allows_moqt_action(&MoqtAction::PublishNamespace, b"example", b".com/bob"));
 }

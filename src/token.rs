@@ -207,13 +207,18 @@ impl CatTokenBuilder {
         self
     }
 
-    pub fn confirmation(mut self, cnf: impl Into<String>) -> Self {
-        self.inner = self.inner.with_confirmation(cnf);
+    pub fn confirmation(mut self, jkt: Vec<u8>) -> Self {
+        self.inner = self.inner.with_confirmation(jkt);
         self
     }
 
-    pub fn dpop_claim(mut self, dpop: impl Into<String>) -> Self {
-        self.inner = self.inner.with_dpop_claim(dpop);
+    pub fn dpop_settings(mut self, settings: crate::claims::CatDpopSettings) -> Self {
+        self.inner = self.inner.with_dpop_settings(settings);
+        self
+    }
+
+    pub fn dpop_window(mut self, window_seconds: i64) -> Self {
+        self.inner = self.inner.with_dpop_window(window_seconds);
         self
     }
 

@@ -46,4 +46,19 @@ pub enum CatError {
 
     #[error("Token usage limit exceeded")]
     UsageLimitExceeded,
+
+    #[error("MOQT action not authorized: {0}")]
+    MoqtActionNotAuthorized(String),
+
+    #[error("DPoP validation failed: {0}")]
+    DpopValidationFailed(String),
+
+    #[error("Invalid DPoP binding")]
+    InvalidDpopBinding,
+
+    #[error("Token revalidation required")]
+    RevalidationRequired,
+
+    #[error("Revalidation interval too short")]
+    RevalidationIntervalTooShort,
 }

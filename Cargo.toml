@@ -12,6 +12,7 @@ categories = ["authentication", "cryptography"]
 [dependencies]
 ciborium = "0.2"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 serde_cbor = "0.11"
 base64 = "0.22"
 ring = "0.17"

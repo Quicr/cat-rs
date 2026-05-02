@@ -1,7 +1,9 @@
 pub mod claims;
 pub mod crypto;
 pub mod cwt;
+pub mod dpop;
 pub mod error;
+pub mod jwk;
 pub mod token;
 
 // Conditional trie module selection based on features
@@ -18,5 +20,7 @@ pub use trie::*;
 pub use claims::*;
 pub use crypto::*;
 pub use cwt::*;
+pub use dpop::*;
 pub use error::*;
+pub use jwk::*;
 pub use token::*;

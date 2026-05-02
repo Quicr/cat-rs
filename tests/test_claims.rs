@@ -77,12 +77,15 @@ fn test_informational_claims() {
 
 #[test]
 fn test_dpop_claims() {
+    let jkt = b"confirmation-key".to_vec();
     let token = CatToken::new()
-        .with_confirmation("confirmation-key")
-        .with_dpop_claim("dpop-data");
+        .with_confirmation(jkt.clone())
+        .with_dpop_settings(CatDpopSettings::new().with_window(300));
 
-    assert_eq!(token.dpop.cnf, Some("confirmation-key".to_string()));
-    assert_eq!(token.dpop.catdpop, Some("dpop-data".to_string()));
+    assert!(token.dpop.cnf.is_some());
+    assert_eq!(token.dpop.cnf.as_ref().unwrap().jkt, jkt);
+    assert!(token.dpop.catdpop.is_some());
+    assert_eq!(token.dpop.catdpop.as_ref().unwrap().window, Some(300));
 }
 
 #[test]
@@ -111,20 +114,22 @@ fn test_uri_patterns() {
 
 #[test]
 fn test_token_builder() {
+    let jkt = b"conf-key".to_vec();
     let token = CatTokenBuilder::new()
         .issuer("https://auth.example.com")
         .audience(vec!["client1".to_string()])
         .expires_at(Utc::now() + chrono::Duration::hours(2))
         .version("2.0")
         .subject("user456")
-        .confirmation("conf-key")
+        .confirmation(jkt.clone())
         .interface_claim("if789")
         .build();
 
     assert_eq!(token.core.iss, Some("https://auth.example.com".to_string()));
     assert_eq!(token.cat.catv, Some("2.0".to_string()));
     assert_eq!(token.informational.sub, Some("user456".to_string()));
-    assert_eq!(token.dpop.cnf, Some("conf-key".to_string()));
+    assert!(token.dpop.cnf.is_some());
+    assert_eq!(token.dpop.cnf.as_ref().unwrap().jkt, jkt);
     assert_eq!(token.request.catif, Some("if789".to_string()));
 }
 

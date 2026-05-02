@@ -39,8 +39,8 @@ fn test_comprehensive_token_creation() {
         .issued_at(iat)
         .interface_data("mobile-interface-v2")
         // DPoP claims
-        .confirmation("jwk-thumbprint-xyz")
-        .dpop_claim("dpop-proof-token")
+        .confirmation(b"jwk-thumbprint-xyz".to_vec())
+        .dpop_settings(cat_impl::CatDpopSettings::new().with_window(300))
         // Request claims
         .interface_claim("auth-interface")
         .request_claim("login-request-abc")
@@ -76,8 +76,10 @@ fn test_comprehensive_token_creation() {
         Some("mobile-interface-v2".to_string())
     );
 
-    assert_eq!(token.dpop.cnf, Some("jwk-thumbprint-xyz".to_string()));
-    assert_eq!(token.dpop.catdpop, Some("dpop-proof-token".to_string()));
+    assert!(token.dpop.cnf.is_some());
+    assert_eq!(token.dpop.cnf.as_ref().unwrap().jkt, b"jwk-thumbprint-xyz".to_vec());
+    assert!(token.dpop.catdpop.is_some());
+    assert_eq!(token.dpop.catdpop.as_ref().unwrap().window, Some(300));
 
     assert_eq!(token.request.catif, Some("auth-interface".to_string()));
     assert_eq!(token.request.catr, Some("login-request-abc".to_string()));
@@ -200,7 +202,7 @@ fn test_cwt_encoding_decoding() {
         .with_expiration(now + chrono::Duration::hours(1))
         .with_version("1.0")
         .with_subject("test-user")
-        .with_confirmation("test-confirmation")
+        .with_confirmation(b"test-confirmation".to_vec())
         .with_interface_claim("test-interface");
 
     let cwt = Cwt::new(-7, original_token.clone()); // ES256 algorithm
@@ -376,8 +378,8 @@ fn test_maximal_token() {
         .with_issued_at(now)
         .with_interface_data("maximal-interface-data")
         // All DPoP claims
-        .with_confirmation("maximal-confirmation-key")
-        .with_dpop_claim("maximal-dpop-data")
+        .with_confirmation(b"maximal-confirmation-key".to_vec())
+        .with_dpop_settings(cat_impl::CatDpopSettings::new().with_window(600).with_jti_processing(true))
         // All request claims
         .with_interface_claim("maximal-interface")
         .with_request_claim("maximal-request");

@@ -31,6 +31,13 @@ pub const CLAIM_CATIFDATA: i64 = 320;
 pub const CLAIM_CNF: i64 = 8;
 pub const CLAIM_CATDPOP: i64 = 321;
 
+// DPoP sub-claim keys (within cnf map)
+pub const CNF_JKT: i64 = 3; // JWK Thumbprint
+
+// catdpop sub-claim keys
+pub const CATDPOP_WINDOW: i64 = 0;
+pub const CATDPOP_HONOR_JTI: i64 = 1;
+
 // Request Claims
 pub const CLAIM_CATIF: i64 = 322;
 pub const CLAIM_CATR: i64 = 323;
@@ -40,9 +47,13 @@ pub const CLAIM_OR: i64 = 324;
 pub const CLAIM_NOR: i64 = 325;
 pub const CLAIM_AND: i64 = 326;
 
-// MOQT Claims (draft-law-moq-cat4moqt)
+// MOQT Claims (draft-ietf-moq-c4m)
 pub const CLAIM_MOQT: i64 = 327; // TBD_MOQT in the spec
 pub const CLAIM_MOQT_REVAL: i64 = 328; // TBD_MOQT_REVAL in the spec
+
+// MOQT Binary match types per spec
+pub const MATCH_TYPE_PREFIX: i64 = 1;
+pub const MATCH_TYPE_SUFFIX: i64 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CoreClaims {
@@ -78,9 +89,50 @@ pub struct InformationalClaims {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConfirmationClaim {
+    pub jkt: Vec<u8>,
+}
+
+impl ConfirmationClaim {
+    pub fn new(jkt: Vec<u8>) -> Self {
+        Self { jkt }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct CatDpopSettings {
+    pub window: Option<i64>,
+    pub honor_jti: Option<bool>,
+}
+
+impl CatDpopSettings {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_window(mut self, seconds: i64) -> Self {
+        self.window = Some(seconds);
+        self
+    }
+
+    pub fn with_jti_processing(mut self, honor: bool) -> Self {
+        self.honor_jti = Some(honor);
+        self
+    }
+
+    pub fn effective_window(&self) -> i64 {
+        self.window.unwrap_or(300)
+    }
+
+    pub fn should_honor_jti(&self) -> bool {
+        self.honor_jti.unwrap_or(true)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DpopClaims {
-    pub cnf: Option<String>,
-    pub catdpop: Option<String>,
+    pub cnf: Option<ConfirmationClaim>,
+    pub catdpop: Option<CatDpopSettings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -286,13 +338,40 @@ pub enum NetworkIdentifier {
 pub enum MoqtAction {
     ClientSetup = 0,
     ServerSetup = 1,
-    Announce = 2,
+    PublishNamespace = 2,  // Was Announce per spec update
     SubscribeNamespace = 3,
     Subscribe = 4,
-    SubscribeUpdate = 5,
+    RequestUpdate = 5,     // Was SubscribeUpdate per spec update
     Publish = 6,
     Fetch = 7,
     TrackStatus = 8,
+}
+
+// Keep backwards compatibility alias
+pub type Announce = MoqtAction;
+pub type SubscribeUpdate = MoqtAction;
+
+impl MoqtAction {
+    pub const ANNOUNCE: MoqtAction = MoqtAction::PublishNamespace;
+    pub const SUBSCRIBE_UPDATE: MoqtAction = MoqtAction::RequestUpdate;
+
+    pub fn action_name(&self) -> &'static str {
+        match self {
+            MoqtAction::ClientSetup => "CLIENT_SETUP",
+            MoqtAction::ServerSetup => "SERVER_SETUP",
+            MoqtAction::PublishNamespace => "PUBLISH_NAMESPACE",
+            MoqtAction::SubscribeNamespace => "SUBSCRIBE_NAMESPACE",
+            MoqtAction::Subscribe => "SUBSCRIBE",
+            MoqtAction::RequestUpdate => "REQUEST_UPDATE",
+            MoqtAction::Publish => "PUBLISH",
+            MoqtAction::Fetch => "FETCH",
+            MoqtAction::TrackStatus => "TRACK_STATUS",
+        }
+    }
+
+    pub fn is_valid(value: i32) -> bool {
+        (0..=8).contains(&value)
+    }
 }
 
 impl From<i32> for MoqtAction {
@@ -300,10 +379,10 @@ impl From<i32> for MoqtAction {
         match value {
             0 => MoqtAction::ClientSetup,
             1 => MoqtAction::ServerSetup,
-            2 => MoqtAction::Announce,
+            2 => MoqtAction::PublishNamespace,
             3 => MoqtAction::SubscribeNamespace,
             4 => MoqtAction::Subscribe,
-            5 => MoqtAction::SubscribeUpdate,
+            5 => MoqtAction::RequestUpdate,
             6 => MoqtAction::Publish,
             7 => MoqtAction::Fetch,
             8 => MoqtAction::TrackStatus,
@@ -312,116 +391,219 @@ impl From<i32> for MoqtAction {
     }
 }
 
+/// Binary match type per CAT-4-MOQT spec
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum BinaryMatchType {
+    Exact = 0,
+    Prefix = 1,
+    Suffix = 2,
+}
+
+/// Binary match structure per CAT-4-MOQT spec CDDL:
+/// bin-match = bstr / [ match-type, match-value ]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BinaryMatch {
-    pub exact: Option<Vec<u8>>,
-    pub prefix: Option<Vec<u8>>,
-    pub suffix: Option<Vec<u8>>,
-    pub contains: Option<Vec<u8>>,
+    pub match_type: BinaryMatchType,
+    pub pattern: Vec<u8>,
 }
 
 impl Default for BinaryMatch {
     fn default() -> Self {
         Self {
-            exact: None,
-            prefix: None,
-            suffix: None,
-            contains: None,
+            match_type: BinaryMatchType::Exact,
+            pattern: Vec::new(),
         }
     }
 }
 
 impl BinaryMatch {
+    pub fn any() -> Self {
+        Self::default()
+    }
+
     pub fn exact(data: Vec<u8>) -> Self {
         Self {
-            exact: Some(data),
-            ..Default::default()
+            match_type: BinaryMatchType::Exact,
+            pattern: data,
         }
     }
-    
+
     pub fn prefix(data: Vec<u8>) -> Self {
         Self {
-            prefix: Some(data),
-            ..Default::default()
+            match_type: BinaryMatchType::Prefix,
+            pattern: data,
         }
     }
-    
+
     pub fn suffix(data: Vec<u8>) -> Self {
         Self {
-            suffix: Some(data),
-            ..Default::default()
+            match_type: BinaryMatchType::Suffix,
+            pattern: data,
         }
     }
-    
-    pub fn contains(data: Vec<u8>) -> Self {
-        Self {
-            contains: Some(data),
-            ..Default::default()
-        }
+
+    pub fn exact_str(s: &str) -> Self {
+        Self::exact(s.as_bytes().to_vec())
     }
-    
+
+    pub fn prefix_str(s: &str) -> Self {
+        Self::prefix(s.as_bytes().to_vec())
+    }
+
+    pub fn suffix_str(s: &str) -> Self {
+        Self::suffix(s.as_bytes().to_vec())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pattern.is_empty()
+    }
+
     pub fn matches(&self, input: &[u8]) -> bool {
-        if let Some(ref exact_match) = self.exact {
-            return input == exact_match.as_slice();
+        if self.pattern.is_empty() {
+            return true; // Empty pattern matches everything
         }
-        
-        if let Some(ref prefix_match) = self.prefix {
-            return input.starts_with(prefix_match);
+
+        match self.match_type {
+            BinaryMatchType::Exact => input == self.pattern.as_slice(),
+            BinaryMatchType::Prefix => input.starts_with(&self.pattern),
+            BinaryMatchType::Suffix => input.ends_with(&self.pattern),
         }
-        
-        if let Some(ref suffix_match) = self.suffix {
-            return input.ends_with(suffix_match);
-        }
-        
-        if let Some(ref contains_match) = self.contains {
-            return input.windows(contains_match.len()).any(|window| window == contains_match.as_slice());
-        }
-        
-        true // Empty match object matches all names
+    }
+
+    pub fn matches_str(&self, input: &str) -> bool {
+        self.matches(input.as_bytes())
     }
 }
 
+/// Namespace match entry - can be a BinaryMatch or Nil (for end-of-namespace-list)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum NamespaceMatch {
+    Match(BinaryMatch),
+    Nil, // Matches end of namespace list only
+}
+
+impl NamespaceMatch {
+    pub fn exact(data: Vec<u8>) -> Self {
+        Self::Match(BinaryMatch::exact(data))
+    }
+
+    pub fn prefix(data: Vec<u8>) -> Self {
+        Self::Match(BinaryMatch::prefix(data))
+    }
+
+    pub fn suffix(data: Vec<u8>) -> Self {
+        Self::Match(BinaryMatch::suffix(data))
+    }
+
+    pub fn nil() -> Self {
+        Self::Nil
+    }
+
+    pub fn matches(&self, tuple_element: Option<&[u8]>) -> bool {
+        match (self, tuple_element) {
+            (NamespaceMatch::Nil, None) => true,  // Nil matches end of list
+            (NamespaceMatch::Nil, Some(_)) => false,
+            (NamespaceMatch::Match(_), None) => false,
+            (NamespaceMatch::Match(m), Some(data)) => m.matches(data),
+        }
+    }
+}
+
+/// MOQT Scope per spec CDDL:
+/// moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MoqtScope {
     pub actions: Vec<MoqtAction>,
-    pub namespace_match: BinaryMatch,
-    pub track_match: BinaryMatch,
+    pub namespace_matches: Vec<NamespaceMatch>, // Array of namespace tuple element matchers
+    pub track_match: Option<BinaryMatch>,       // Optional track match
+}
+
+impl Default for MoqtScope {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MoqtScope {
     pub fn new() -> Self {
         Self {
             actions: Vec::new(),
-            namespace_match: BinaryMatch::default(),
-            track_match: BinaryMatch::default(),
+            namespace_matches: Vec::new(),
+            track_match: None,
         }
     }
-    
+
     pub fn with_actions(mut self, actions: Vec<MoqtAction>) -> Self {
         self.actions = actions;
         self
     }
-    
-    pub fn with_namespace_match(mut self, namespace_match: BinaryMatch) -> Self {
-        self.namespace_match = namespace_match;
+
+    pub fn with_action(mut self, action: MoqtAction) -> Self {
+        self.actions.push(action);
         self
     }
-    
+
+    pub fn with_namespace_match(mut self, ns_match: NamespaceMatch) -> Self {
+        self.namespace_matches.push(ns_match);
+        self
+    }
+
+    pub fn with_namespace_matches(mut self, matches: Vec<NamespaceMatch>) -> Self {
+        self.namespace_matches = matches;
+        self
+    }
+
     pub fn with_track_match(mut self, track_match: BinaryMatch) -> Self {
-        self.track_match = track_match;
+        self.track_match = Some(track_match);
         self
     }
-    
+
     pub fn allows_action(&self, action: &MoqtAction) -> bool {
         self.actions.contains(action)
     }
-    
-    pub fn matches_namespace(&self, namespace: &[u8]) -> bool {
-        self.namespace_match.matches(namespace)
+
+    /// Match a full track name (namespace tuple + track name)
+    /// namespace_tuple: the namespace as a sequence of tuple elements
+    /// track: the track name
+    pub fn matches_full_track_name(&self, namespace_tuple: &[&[u8]], track: &[u8]) -> bool {
+        // Match namespace tuple elements
+        if !self.namespace_matches.is_empty() {
+            // Each namespace_match[i] matches namespace_tuple[i]
+            for (i, ns_match) in self.namespace_matches.iter().enumerate() {
+                let tuple_elem = namespace_tuple.get(i).copied();
+                if !ns_match.matches(tuple_elem) {
+                    return false;
+                }
+            }
+        }
+
+        // Match track name
+        if let Some(ref track_match) = self.track_match {
+            if !track_match.matches(track) {
+                return false;
+            }
+        }
+
+        true
     }
-    
+
+    /// Simple match for flat namespace (single element)
+    pub fn matches_namespace(&self, namespace: &[u8]) -> bool {
+        if self.namespace_matches.is_empty() {
+            return true;
+        }
+        if let Some(first) = self.namespace_matches.first() {
+            first.matches(Some(namespace))
+        } else {
+            true
+        }
+    }
+
     pub fn matches_track(&self, track: &[u8]) -> bool {
-        self.track_match.matches(track)
+        match &self.track_match {
+            Some(m) => m.matches(track),
+            None => true,
+        }
     }
 }
 
@@ -560,13 +742,19 @@ impl CatToken {
         self
     }
 
-    pub fn with_confirmation(mut self, cnf: impl Into<String>) -> Self {
-        self.dpop.cnf = Some(cnf.into());
+    pub fn with_confirmation(mut self, jkt: Vec<u8>) -> Self {
+        self.dpop.cnf = Some(ConfirmationClaim::new(jkt));
         self
     }
 
-    pub fn with_dpop_claim(mut self, dpop: impl Into<String>) -> Self {
-        self.dpop.catdpop = Some(dpop.into());
+    pub fn with_dpop_settings(mut self, settings: CatDpopSettings) -> Self {
+        self.dpop.catdpop = Some(settings);
+        self
+    }
+
+    pub fn with_dpop_window(mut self, window_seconds: i64) -> Self {
+        let settings = self.dpop.catdpop.take().unwrap_or_default();
+        self.dpop.catdpop = Some(settings.with_window(window_seconds));
         self
     }
 

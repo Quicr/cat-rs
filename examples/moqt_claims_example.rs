@@ -10,7 +10,7 @@
  */
 
 use cat_impl::claims::{
-    BinaryMatch, MoqtAction, MoqtScope, 
+    BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch,
 };
 use cat_impl::token::CatTokenBuilder;
 use cat_impl::{encode_token, decode_token};
@@ -32,10 +32,10 @@ fn demonstrate_basic_moqt_token() {
     // with prefix matching on /sports/ tracks
     let scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::Publish,
         ])
-        .with_namespace_match(BinaryMatch::exact(b"cdn.example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"cdn.example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/sports/".to_vec()));
 
     let token = CatTokenBuilder::new()
@@ -58,11 +58,11 @@ fn demonstrate_basic_moqt_token() {
     println!("\nTesting authorization:");
     
     let test_cases = vec![
-        (MoqtAction::Announce, "cdn.example.com".as_bytes(), "/sports/football".as_bytes(), true),
+        (MoqtAction::PublishNamespace, "cdn.example.com".as_bytes(), "/sports/football".as_bytes(), true),
         (MoqtAction::Publish, "cdn.example.com".as_bytes(), "/sports/basketball/live".as_bytes(), true),
         (MoqtAction::Fetch, "cdn.example.com".as_bytes(), "/sports/tennis".as_bytes(), false), // Not allowed
-        (MoqtAction::Announce, "other.example.com".as_bytes(), "/sports/soccer".as_bytes(), false), // Wrong namespace
-        (MoqtAction::Announce, "cdn.example.com".as_bytes(), "/news/breaking".as_bytes(), false), // Wrong track prefix
+        (MoqtAction::PublishNamespace, "other.example.com".as_bytes(), "/sports/soccer".as_bytes(), false), // Wrong namespace
+        (MoqtAction::PublishNamespace, "cdn.example.com".as_bytes(), "/news/breaking".as_bytes(), false), // Wrong track prefix
     ];
     
     for (action, namespace, track, expected) in test_cases {
@@ -83,12 +83,12 @@ fn demonstrate_spec_examples() {
     
     let exact_scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::SubscribeNamespace,
             MoqtAction::Publish,
             MoqtAction::Fetch,
         ])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::exact(b"/bob".to_vec()));
     
     let exact_token = CatTokenBuilder::new()
@@ -100,20 +100,20 @@ fn demonstrate_spec_examples() {
     println!("  ✓ Permits: example.com/bob");
     println!("  ✗ Prohibits: example.com/bob/123, example.com/alice, other.com/bob");
     
-    assert!(exact_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/bob".as_bytes()));
-    assert!(!exact_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/bob/123".as_bytes()));
-    assert!(!exact_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/alice".as_bytes()));
+    assert!(exact_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/bob".as_bytes()));
+    assert!(!exact_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/bob/123".as_bytes()));
+    assert!(!exact_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/alice".as_bytes()));
     
     println!("\nExample 2: Prefix match from spec - 'example.com/bob*'");
     
     let prefix_scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
+            MoqtAction::PublishNamespace,
             MoqtAction::SubscribeNamespace,
             MoqtAction::Publish,
             MoqtAction::Fetch,
         ])
-        .with_namespace_match(BinaryMatch::exact(b"example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/bob".to_vec()));
     
     let prefix_token = CatTokenBuilder::new()
@@ -125,10 +125,10 @@ fn demonstrate_spec_examples() {
     println!("  ✓ Permits: example.com/bob, example.com/bob/123, example.com/bob/logs");
     println!("  ✗ Prohibits: example.com/alice, other.com/bob");
     
-    assert!(prefix_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/bob".as_bytes()));
-    assert!(prefix_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/bob/123".as_bytes()));
-    assert!(prefix_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/bob/logs".as_bytes()));
-    assert!(!prefix_token.allows_moqt_action(&MoqtAction::Announce, "example.com".as_bytes(), "/alice".as_bytes()));
+    assert!(prefix_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/bob".as_bytes()));
+    assert!(prefix_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/bob/123".as_bytes()));
+    assert!(prefix_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/bob/logs".as_bytes()));
+    assert!(!prefix_token.allows_moqt_action(&MoqtAction::PublishNamespace, "example.com".as_bytes(), "/alice".as_bytes()));
 }
 
 fn demonstrate_multiple_scopes() {
@@ -138,25 +138,25 @@ fn demonstrate_multiple_scopes() {
     
     // Scope 1: Publishing live streams
     let live_scope = MoqtScope::new()
-        .with_actions(vec![MoqtAction::Announce, MoqtAction::Publish])
-        .with_namespace_match(BinaryMatch::exact(b"live.example.com".to_vec()))
+        .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::Publish])
+        .with_namespace_match(NamespaceMatch::exact(b"live.example.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/stream/".to_vec()));
     
     // Scope 2: Fetching recorded content  
     let vod_scope = MoqtScope::new()
         .with_actions(vec![MoqtAction::Fetch, MoqtAction::Subscribe])
-        .with_namespace_match(BinaryMatch::exact(b"vod.example.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"vod.example.com".to_vec()))
         .with_track_match(BinaryMatch::suffix(b".mp4".to_vec()));
     
-    // Scope 3: Admin operations on any track containing "admin"
+    // Scope 3: Admin operations on tracks with admin prefix
     let admin_scope = MoqtScope::new()
         .with_actions(vec![
-            MoqtAction::Announce,
-            MoqtAction::SubscribeNamespace, 
+            MoqtAction::PublishNamespace,
+            MoqtAction::SubscribeNamespace,
             MoqtAction::TrackStatus,
         ])
-        .with_namespace_match(BinaryMatch::prefix(b"admin.".to_vec()))
-        .with_track_match(BinaryMatch::contains(b"admin".to_vec()));
+        .with_namespace_match(NamespaceMatch::prefix(b"admin.".to_vec()))
+        .with_track_match(BinaryMatch::prefix(b"admin".to_vec()));
     
     let multi_token = CatTokenBuilder::new()
         .issuer("https://multi-service.com")
@@ -174,7 +174,7 @@ fn demonstrate_multiple_scopes() {
     
     let test_cases = vec![
         // Live streaming tests
-        (MoqtAction::Announce, "live.example.com".as_bytes(), "/stream/sports".as_bytes(), true),
+        (MoqtAction::PublishNamespace, "live.example.com".as_bytes(), "/stream/sports".as_bytes(), true),
         (MoqtAction::Publish, "live.example.com".as_bytes(), "/stream/news/breaking".as_bytes(), true),
         (MoqtAction::Fetch, "live.example.com".as_bytes(), "/stream/music".as_bytes(), false), // Wrong action
         
@@ -187,7 +187,7 @@ fn demonstrate_multiple_scopes() {
         // Admin tests
         (MoqtAction::TrackStatus, "admin.example.com".as_bytes(), "admin-dashboard".as_bytes(), true),
         (MoqtAction::SubscribeNamespace, "admin.internal.net".as_bytes(), "user-admin".as_bytes(), true),
-        (MoqtAction::Announce, "public.example.com".as_bytes(), "admin-panel".as_bytes(), false), // Wrong namespace prefix
+        (MoqtAction::PublishNamespace, "public.example.com".as_bytes(), "admin-panel".as_bytes(), false), // Wrong namespace prefix
     ];
     
     for (action, namespace, track, expected) in test_cases {
@@ -208,13 +208,13 @@ fn demonstrate_token_encoding_decoding() {
     
     // Create a comprehensive MOQT token
     let scope1 = MoqtScope::new()
-        .with_actions(vec![MoqtAction::Announce, MoqtAction::Publish])
-        .with_namespace_match(BinaryMatch::exact(b"cdn.broadcaster.com".to_vec()))
+        .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::Publish])
+        .with_namespace_match(NamespaceMatch::exact(b"cdn.broadcaster.com".to_vec()))
         .with_track_match(BinaryMatch::prefix(b"/live/".to_vec()));
         
     let scope2 = MoqtScope::new()
         .with_actions(vec![MoqtAction::Fetch])
-        .with_namespace_match(BinaryMatch::exact(b"archive.broadcaster.com".to_vec()))
+        .with_namespace_match(NamespaceMatch::exact(b"archive.broadcaster.com".to_vec()))
         .with_track_match(BinaryMatch::suffix(b".m4s".to_vec()));
     
     let original_token = CatTokenBuilder::new()
@@ -252,7 +252,7 @@ fn demonstrate_token_encoding_decoding() {
     
     // Test that authorization still works after decoding
     assert!(decoded_token.allows_moqt_action(
-        &MoqtAction::Announce, 
+        &MoqtAction::PublishNamespace, 
         "cdn.broadcaster.com".as_bytes(), 
         "/live/event123".as_bytes()
     ));
@@ -293,14 +293,8 @@ fn demonstrate_binary_matching_patterns() {
     println!("  ✗ 'video.mp4' -> {}", suffix_match.matches("video.mp4".as_bytes()));
     println!("  ✗ 'video.webm.tmp' -> {}", suffix_match.matches("video.webm.tmp".as_bytes()));
     
-    // Contains match  
-    let contains_match = BinaryMatch::contains("sports".as_bytes().to_vec());
-    println!("\nContains match for 'sports':");
-    println!("  ✓ 'sports' -> {}", contains_match.matches("sports".as_bytes()));
-    println!("  ✓ 'live-sports-hd' -> {}", contains_match.matches("live-sports-hd".as_bytes()));
-    println!("  ✓ 'esports/tournament' -> {}", contains_match.matches("esports/tournament".as_bytes()));
-    println!("  ✗ 'news/breaking' -> {}", contains_match.matches("news/breaking".as_bytes()));
-    
+    // Note: contains match was removed from spec - only exact/prefix/suffix are supported
+
     // Empty match (matches everything)
     let empty_match = BinaryMatch::default();
     println!("\nEmpty match (allows all):");
@@ -319,7 +313,7 @@ fn demonstrate_revalidation_claim() {
         .issuer("https://admin.example.com") 
         .moqt_scope(MoqtScope::new()
             .with_actions(vec![MoqtAction::TrackStatus, MoqtAction::SubscribeNamespace])
-            .with_namespace_match(BinaryMatch::prefix(b"admin.".to_vec()))
+            .with_namespace_match(NamespaceMatch::prefix(b"admin.".to_vec()))
             .with_track_match(BinaryMatch::default()))
         .moqt_reval(60.0) // Revalidate every minute
         .build();
@@ -330,8 +324,8 @@ fn demonstrate_revalidation_claim() {
     let stream_token = CatTokenBuilder::new()
         .issuer("https://stream.example.com")
         .moqt_scope(MoqtScope::new()
-            .with_actions(vec![MoqtAction::Publish, MoqtAction::Announce])
-            .with_namespace_match(BinaryMatch::exact(b"live.example.com".to_vec()))
+            .with_actions(vec![MoqtAction::Publish, MoqtAction::PublishNamespace])
+            .with_namespace_match(NamespaceMatch::exact(b"live.example.com".to_vec()))
             .with_track_match(BinaryMatch::prefix(b"/streams/".to_vec())))
         .moqt_reval(300.0) // Revalidate every 5 minutes
         .build();
@@ -343,7 +337,7 @@ fn demonstrate_revalidation_claim() {
         .issuer("https://cdn.example.com")
         .moqt_scope(MoqtScope::new()
             .with_actions(vec![MoqtAction::Fetch, MoqtAction::Subscribe])
-            .with_namespace_match(BinaryMatch::prefix(b"public.".to_vec()))
+            .with_namespace_match(NamespaceMatch::prefix(b"public.".to_vec()))
             .with_track_match(BinaryMatch::default()))
         .moqt_reval(3600.0) // Revalidate every hour
         .build();
@@ -355,7 +349,7 @@ fn demonstrate_revalidation_claim() {
         .issuer("https://persistent.example.com")
         .moqt_scope(MoqtScope::new()
             .with_actions(vec![MoqtAction::Fetch])
-            .with_namespace_match(BinaryMatch::exact(b"archive.example.com".to_vec()))
+            .with_namespace_match(NamespaceMatch::exact(b"archive.example.com".to_vec()))
             .with_track_match(BinaryMatch::suffix(b".mp4".to_vec())))
         // No moqt_reval claim - no revalidation required
         .build();
@@ -380,11 +374,11 @@ fn demonstrate_dpop_integration() {
         .issuer("https://secure-broadcaster.com")
         .audience(vec!["secure-relay.net".to_string()])
         .expires_at(Utc::now() + Duration::hours(4))
-        .confirmation("jkt:dGVzdCBrZXkgdGh1bWJwcmludAAAAAAAAAAAA") // Example JWK thumbprint
-        .dpop_claim("{\"0\":300,\"1\":1}") // catdpop settings: 5-min window, honor jti
+        .confirmation(b"test_key_thumbprint_32bytes_xxx".to_vec()) // Example JWK thumbprint (32 bytes)
+        .dpop_settings(cat_impl::CatDpopSettings::new().with_window(300).with_jti_processing(true))
         .moqt_scope(MoqtScope::new()
-            .with_actions(vec![MoqtAction::Announce, MoqtAction::Publish])
-            .with_namespace_match(BinaryMatch::exact(b"cdn.example.com".to_vec()))
+            .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::Publish])
+            .with_namespace_match(NamespaceMatch::exact(b"cdn.example.com".to_vec()))
             .with_track_match(BinaryMatch::prefix(b"/sports/".to_vec())))
         .build();
     

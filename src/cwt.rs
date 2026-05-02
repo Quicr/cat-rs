@@ -204,13 +204,27 @@ impl Cwt {
             claims_map.insert(CLAIM_CATIFDATA, Value::Text(catifdata.clone()));
         }
 
-        // DPoP claims
+        // DPoP claims - cnf is a map with jkt (key 3) containing the JWK thumbprint
         if let Some(ref cnf) = self.payload.dpop.cnf {
-            claims_map.insert(CLAIM_CNF, Value::Text(cnf.clone()));
+            let cnf_map = vec![
+                (Value::Integer(CNF_JKT.into()), Value::Bytes(cnf.jkt.clone()))
+            ];
+            claims_map.insert(CLAIM_CNF, Value::Map(cnf_map));
         }
 
+        // catdpop is a map with window (key 0) and honor_jti (key 1)
         if let Some(ref catdpop) = self.payload.dpop.catdpop {
-            claims_map.insert(CLAIM_CATDPOP, Value::Text(catdpop.clone()));
+            let mut dpop_map = Vec::new();
+            if let Some(window) = catdpop.window {
+                dpop_map.push((Value::Integer(CATDPOP_WINDOW.into()), Value::Integer(window.into())));
+            }
+            if let Some(honor_jti) = catdpop.honor_jti {
+                let jti_value = if honor_jti { 1i64 } else { 0i64 };
+                dpop_map.push((Value::Integer(CATDPOP_HONOR_JTI.into()), Value::Integer(jti_value.into())));
+            }
+            if !dpop_map.is_empty() {
+                claims_map.insert(CLAIM_CATDPOP, Value::Map(dpop_map));
+            }
         }
 
         // Request claims
@@ -222,7 +236,8 @@ impl Cwt {
             claims_map.insert(CLAIM_CATR, Value::Text(catr.clone()));
         }
 
-        // MOQT claims
+        // MOQT claims per spec CDDL:
+        // moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
         if let Some(ref moqt_scopes) = self.payload.moqt.moqt {
             let scopes_array: Vec<Value> = moqt_scopes
                 .iter()
@@ -230,15 +245,27 @@ impl Cwt {
                     let actions: Vec<Value> = scope.actions.iter()
                         .map(|action| Value::Integer((*action as i32).into()))
                         .collect();
-                    
-                    let ns_match = encode_binary_match(&scope.namespace_match);
-                    let track_match = encode_binary_match(&scope.track_match);
-                    
-                    Value::Array(vec![
-                        Value::Array(actions),
-                        ns_match,
-                        track_match,
-                    ])
+
+                    let mut scope_array = vec![Value::Array(actions)];
+
+                    // Add namespace matches if present
+                    if !scope.namespace_matches.is_empty() {
+                        let ns_matches: Vec<Value> = scope.namespace_matches.iter()
+                            .map(encode_namespace_match)
+                            .collect();
+                        scope_array.push(Value::Array(ns_matches));
+                    }
+
+                    // Add track match if present (only if we have ns matches or need track)
+                    if let Some(ref track_match) = scope.track_match {
+                        // Ensure we have namespace matches array (even if empty) before track
+                        if scope.namespace_matches.is_empty() {
+                            scope_array.push(Value::Array(vec![]));
+                        }
+                        scope_array.push(encode_binary_match(track_match));
+                    }
+
+                    Value::Array(scope_array)
                 })
                 .collect();
             claims_map.insert(CLAIM_MOQT, Value::Array(scopes_array));
@@ -265,64 +292,78 @@ impl Cwt {
     }
 }
 
+/// Encode binary match per spec CDDL:
+/// bin-match = bstr / [ match-type, match-value ]
+/// match-type = prefix-match / suffix-match
+/// prefix-match = 1
+/// suffix-match = 2
 fn encode_binary_match(binary_match: &crate::claims::BinaryMatch) -> Value {
-    let mut match_map = Vec::new();
-    
-    if let Some(ref exact) = binary_match.exact {
-        match_map.push((Value::Integer(0.into()), Value::Bytes(exact.clone())));
+    if binary_match.is_empty() {
+        return Value::Bytes(vec![]);
     }
-    
-    if let Some(ref prefix) = binary_match.prefix {
-        match_map.push((Value::Integer(1.into()), Value::Bytes(prefix.clone())));
+
+    match binary_match.match_type {
+        BinaryMatchType::Exact => Value::Bytes(binary_match.pattern.clone()),
+        BinaryMatchType::Prefix => Value::Array(vec![
+            Value::Integer(MATCH_TYPE_PREFIX.into()),
+            Value::Bytes(binary_match.pattern.clone()),
+        ]),
+        BinaryMatchType::Suffix => Value::Array(vec![
+            Value::Integer(MATCH_TYPE_SUFFIX.into()),
+            Value::Bytes(binary_match.pattern.clone()),
+        ]),
     }
-    
-    if let Some(ref suffix) = binary_match.suffix {
-        match_map.push((Value::Integer(2.into()), Value::Bytes(suffix.clone())));
-    }
-    
-    if let Some(ref contains) = binary_match.contains {
-        match_map.push((Value::Integer(3.into()), Value::Bytes(contains.clone())));
-    }
-    
-    Value::Map(match_map)
 }
 
+/// Encode namespace match (can be bin-match or nil)
+fn encode_namespace_match(ns_match: &crate::claims::NamespaceMatch) -> Value {
+    match ns_match {
+        NamespaceMatch::Nil => Value::Null,
+        NamespaceMatch::Match(binary_match) => encode_binary_match(binary_match),
+    }
+}
+
+/// Decode binary match from CBOR
 fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatError> {
-    let mut binary_match = crate::claims::BinaryMatch::default();
-    
-    if let Value::Map(map) = value {
-        for (key, val) in map {
-            if let Value::Integer(match_type) = key {
-                if let Ok(match_type_i32) = TryInto::<i32>::try_into(*match_type) {
-                    match match_type_i32 {
-                        0 => {
-                            if let Value::Bytes(data) = val {
-                                binary_match.exact = Some(data.clone());
-                            }
-                        }
-                        1 => {
-                            if let Value::Bytes(data) = val {
-                                binary_match.prefix = Some(data.clone());
-                            }
-                        }
-                        2 => {
-                            if let Value::Bytes(data) = val {
-                                binary_match.suffix = Some(data.clone());
-                            }
-                        }
-                        3 => {
-                            if let Value::Bytes(data) = val {
-                                binary_match.contains = Some(data.clone());
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+    match value {
+        // Exact match: just a byte string
+        Value::Bytes(data) => {
+            if data.is_empty() {
+                Ok(BinaryMatch::any())
+            } else {
+                Ok(BinaryMatch::exact(data.clone()))
             }
         }
+        // Prefix or suffix match: [match-type, match-value]
+        Value::Array(arr) if arr.len() == 2 => {
+            let match_type = match &arr[0] {
+                Value::Integer(i) => {
+                    let i_val: i64 = (*i).try_into().map_err(|_| CatError::InvalidTokenFormat)?;
+                    i_val
+                }
+                _ => return Err(CatError::InvalidTokenFormat),
+            };
+            let pattern = match &arr[1] {
+                Value::Bytes(data) => data.clone(),
+                _ => return Err(CatError::InvalidTokenFormat),
+            };
+
+            match match_type {
+                1 => Ok(BinaryMatch::prefix(pattern)),
+                2 => Ok(BinaryMatch::suffix(pattern)),
+                _ => Err(CatError::InvalidClaimValue(format!("Unknown match type: {}", match_type))),
+            }
+        }
+        _ => Err(CatError::InvalidTokenFormat),
     }
-    
-    Ok(binary_match)
+}
+
+/// Decode namespace match (bin-match or nil)
+fn decode_namespace_match(value: &Value) -> Result<crate::claims::NamespaceMatch, CatError> {
+    match value {
+        Value::Null => Ok(NamespaceMatch::Nil),
+        _ => Ok(NamespaceMatch::Match(decode_binary_match(value)?)),
+    }
 }
 
 impl Cwt {
@@ -643,13 +684,44 @@ impl Cwt {
                     }
                 }
                 CLAIM_CNF => {
-                    if let Value::Text(s) = value {
-                        dpop.cnf = Some(s);
+                    // cnf is a map with jkt (key 3) containing the JWK thumbprint
+                    if let Value::Map(map) = value {
+                        for (k, v) in map {
+                            if let Value::Integer(key_int) = k {
+                                let key_val: i64 = key_int.try_into().unwrap_or(-1);
+                                if key_val == CNF_JKT {
+                                    if let Value::Bytes(jkt) = v {
+                                        dpop.cnf = Some(ConfirmationClaim::new(jkt));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 CLAIM_CATDPOP => {
-                    if let Value::Text(s) = value {
-                        dpop.catdpop = Some(s);
+                    // catdpop is a map with window (key 0) and honor_jti (key 1)
+                    if let Value::Map(map) = value {
+                        let mut settings = CatDpopSettings::new();
+                        for (k, v) in map {
+                            if let Value::Integer(key_int) = k {
+                                let key_val: i64 = key_int.try_into().unwrap_or(-1);
+                                match key_val {
+                                    0 => {
+                                        if let Value::Integer(window) = v {
+                                            settings.window = Some(window.try_into().unwrap_or(300));
+                                        }
+                                    }
+                                    1 => {
+                                        if let Value::Integer(jti_val) = v {
+                                            let jti_i64: i64 = jti_val.try_into().unwrap_or(1);
+                                            settings.honor_jti = Some(jti_i64 != 0);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        dpop.catdpop = Some(settings);
                     }
                 }
                 CLAIM_CATIF => {
@@ -663,35 +735,49 @@ impl Cwt {
                     }
                 }
                 CLAIM_MOQT => {
+                    // moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
                     if let Value::Array(scopes_array) = value {
                         let mut scopes = Vec::new();
                         for scope_value in scopes_array {
                             if let Value::Array(scope_array) = scope_value {
-                                if scope_array.len() == 3 {
-                                    // Parse actions
-                                    let mut actions = Vec::new();
-                                    if let Value::Array(ref actions_array) = scope_array[0] {
-                                        for action_value in actions_array {
-                                            if let Value::Integer(action_int) = action_value {
-                                                if let Ok(action_i32) = TryInto::<i32>::try_into(*action_int) {
-                                                    actions.push(crate::claims::MoqtAction::from(action_i32));
-                                                }
+                                if scope_array.is_empty() {
+                                    continue;
+                                }
+
+                                // Parse actions (required, first element)
+                                let mut actions = Vec::new();
+                                if let Value::Array(ref actions_array) = scope_array[0] {
+                                    for action_value in actions_array {
+                                        if let Value::Integer(action_int) = action_value {
+                                            if let Ok(action_i32) = TryInto::<i32>::try_into(*action_int) {
+                                                actions.push(MoqtAction::from(action_i32));
                                             }
                                         }
                                     }
-                                    
-                                    // Parse namespace match
-                                    let ns_match = decode_binary_match(&scope_array[1])?;
-                                    
-                                    // Parse track match  
-                                    let track_match = decode_binary_match(&scope_array[2])?;
-                                    
-                                    scopes.push(crate::claims::MoqtScope {
-                                        actions,
-                                        namespace_match: ns_match,
-                                        track_match: track_match,
-                                    });
                                 }
+
+                                let mut namespace_matches = Vec::new();
+                                let mut track_match = None;
+
+                                // Parse namespace matches (optional, second element)
+                                if scope_array.len() > 1 {
+                                    if let Value::Array(ref ns_array) = scope_array[1] {
+                                        for ns_value in ns_array {
+                                            namespace_matches.push(decode_namespace_match(ns_value)?);
+                                        }
+                                    }
+                                }
+
+                                // Parse track match (optional, third element)
+                                if scope_array.len() > 2 {
+                                    track_match = Some(decode_binary_match(&scope_array[2])?);
+                                }
+
+                                scopes.push(MoqtScope {
+                                    actions,
+                                    namespace_matches,
+                                    track_match,
+                                });
                             }
                         }
                         moqt.moqt = Some(scopes);
