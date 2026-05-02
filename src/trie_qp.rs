@@ -37,9 +37,10 @@ impl PrefixTrie {
         let mut matches = Vec::new();
         let text_bytes = text.as_bytes();
 
-        // Get all entries that are prefixes of the text
-        for (key, value) in self.trie.iter() {
-            if text_bytes.starts_with(key) {
+        // Walk through increasing prefixes of text, checking for matches
+        for i in 1..=text_bytes.len() {
+            let prefix = &text_bytes[..i];
+            if let Some(value) = self.trie.get(prefix) {
                 matches.push(value.as_str());
             }
         }
@@ -50,9 +51,10 @@ impl PrefixTrie {
     pub fn contains_prefix(&self, text: &str) -> bool {
         let text_bytes = text.as_bytes();
 
-        // Check if any key in the trie is a prefix of the text
-        for (key, _) in self.trie.iter() {
-            if text_bytes.starts_with(key) {
+        // Walk through increasing prefixes of text, checking for matches
+        for i in 1..=text_bytes.len() {
+            let prefix = &text_bytes[..i];
+            if self.trie.contains_key(prefix) {
                 return true;
             }
         }
@@ -103,8 +105,8 @@ impl SuffixTrie {
     }
 
     pub fn insert(&mut self, pattern: &str, value: String) {
-        // Store the pattern as-is, we'll reverse during search
-        let key = pattern.as_bytes().to_vec();
+        // Store reversed pattern for efficient suffix matching
+        let key: Vec<u8> = pattern.bytes().rev().collect();
         if !self.trie.contains_key(&key) {
             self.size += 1;
         }
@@ -113,11 +115,12 @@ impl SuffixTrie {
 
     pub fn search_suffix(&self, text: &str) -> Vec<&str> {
         let mut matches = Vec::new();
+        let reversed: Vec<u8> = text.bytes().rev().collect();
 
-        // Check if text ends with any of our stored patterns
-        for (key, value) in self.trie.iter() {
-            let pattern = std::str::from_utf8(key).unwrap();
-            if text.ends_with(pattern) {
+        // Walk through increasing prefixes of reversed text
+        for i in 1..=reversed.len() {
+            let prefix = &reversed[..i];
+            if let Some(value) = self.trie.get(prefix) {
                 matches.push(value.as_str());
             }
         }
@@ -126,10 +129,12 @@ impl SuffixTrie {
     }
 
     pub fn contains_suffix(&self, text: &str) -> bool {
-        // Check if text ends with any of our stored patterns
-        for (key, _) in self.trie.iter() {
-            let pattern = std::str::from_utf8(key).unwrap();
-            if text.ends_with(pattern) {
+        let reversed: Vec<u8> = text.bytes().rev().collect();
+
+        // Walk through increasing prefixes of reversed text
+        for i in 1..=reversed.len() {
+            let prefix = &reversed[..i];
+            if self.trie.contains_key(prefix) {
                 return true;
             }
         }
@@ -140,12 +145,15 @@ impl SuffixTrie {
     pub fn get_all_patterns(&self) -> Vec<String> {
         self.trie
             .keys()
-            .map(|k| String::from_utf8_lossy(k).into_owned())
+            .map(|k| {
+                let reversed: Vec<u8> = k.iter().rev().cloned().collect();
+                String::from_utf8_lossy(&reversed).into_owned()
+            })
             .collect()
     }
 
     pub fn remove(&mut self, pattern: &str) -> bool {
-        let key = pattern.as_bytes().to_vec();
+        let key: Vec<u8> = pattern.bytes().rev().collect();
         if self.trie.remove(&key).is_some() {
             self.size -= 1;
             true
