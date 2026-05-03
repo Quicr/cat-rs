@@ -4,6 +4,8 @@
 use cat_impl::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator, roles};
 use cat_impl::*;
 use chrono::{Duration, Utc};
+use std::sync::Arc;
+use std::thread;
 
 #[test]
 fn test_moqt_validator_spec_example_exact_match() {
@@ -313,4 +315,94 @@ fn test_moqt_empty_scopes() {
     let result = validator.authorize(&token, &request);
 
     assert!(!result.authorized);
+}
+
+#[test]
+fn test_moqt_validator_concurrent_access() {
+    let scope = MoqtScopeBuilder::new()
+        .full_access()
+        .namespace_prefix(b"cdn.")
+        .build();
+
+    let token = Arc::new(
+        CatTokenBuilder::new()
+            .issuer("https://concurrent-test.com")
+            .moqt_scope(scope)
+            .build(),
+    );
+
+    let validator = Arc::new(MoqtValidator::new());
+
+    let mut handles = vec![];
+
+    for i in 0..10 {
+        let token = Arc::clone(&token);
+        let validator = Arc::clone(&validator);
+
+        let handle = thread::spawn(move || {
+            for j in 0..100 {
+                let track = format!("/stream/{}/{}", i, j);
+                let request =
+                    MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", track.as_bytes());
+                let result = validator.authorize(&token, &request);
+                assert!(result.authorized, "Thread {} iter {} should be authorized", i, j);
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().expect("Thread panicked");
+    }
+}
+
+#[test]
+fn test_dpop_validator_concurrent_jti() {
+    let settings = CatDpopSettings::new().with_window(300).with_jti_processing(true);
+    let validator = Arc::new(DpopValidator::new(settings));
+
+    let alg = Es256Algorithm::new_with_key_pair().unwrap();
+    let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
+    let thumbprint = Arc::new(jwk.thumbprint().unwrap());
+
+    let mut handles = vec![];
+
+    for i in 0..10 {
+        let validator = Arc::clone(&validator);
+        let thumbprint = Arc::clone(&thumbprint);
+        let jwk_clone = jwk.clone();
+
+        let handle = thread::spawn(move || {
+            for j in 0..50 {
+                let jti = format!("jti-{}-{}", i, j);
+                let mut proof = DpopProof::create_for_moqt(
+                    MoqtAction::Publish,
+                    b"namespace",
+                    b"track",
+                    "ES256",
+                    jwk_clone.clone(),
+                )
+                .with_jti(jti.clone());
+                proof.signature = vec![1, 2, 3]; // Dummy signature for test
+
+                let result = validator.validate(&proof, MoqtAction::Publish, &thumbprint);
+                assert!(result.is_ok(), "First use of JTI {} should succeed", jti);
+
+                // Second use should fail (replay)
+                let result = validator.validate(&proof, MoqtAction::Publish, &thumbprint);
+                assert!(
+                    matches!(result, Err(CatError::ReplayAttackDetected)),
+                    "Replay of JTI {} should fail",
+                    jti
+                );
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().expect("Thread panicked");
+    }
 }

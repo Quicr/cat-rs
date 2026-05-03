@@ -77,6 +77,7 @@ impl MoqtAuthResult {
 }
 
 /// MOQT-specific token validator
+#[derive(Clone)]
 pub struct MoqtValidator {
     /// Minimum revalidation interval this relay can support (in seconds)
     min_revalidation_interval: Option<f64>,
