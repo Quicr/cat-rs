@@ -267,11 +267,24 @@ impl DpopValidator {
         }
     }
 
+    /// Validate DPoP proof
+    /// - `access_token_hash`: Optional SHA-256 hash of the access token (for ath claim validation)
     pub fn validate(
         &self,
         proof: &DpopProof,
         expected_action: MoqtAction,
         expected_thumbprint: &[u8],
+    ) -> Result<(), CatError> {
+        self.validate_with_ath(proof, expected_action, expected_thumbprint, None)
+    }
+
+    /// Validate DPoP proof with access token hash verification
+    pub fn validate_with_ath(
+        &self,
+        proof: &DpopProof,
+        expected_action: MoqtAction,
+        expected_thumbprint: &[u8],
+        access_token_hash: Option<&str>,
     ) -> Result<(), CatError> {
         if !proof.header.is_valid() {
             return Err(CatError::DpopValidationFailed("Invalid header".to_string()));
@@ -297,6 +310,23 @@ impl DpopValidator {
         let jwk_thumbprint = proof.header.jwk.thumbprint()?;
         if jwk_thumbprint != expected_thumbprint {
             return Err(CatError::InvalidDpopBinding);
+        }
+
+        // Validate access token hash if provided
+        if let Some(expected_ath) = access_token_hash {
+            match &proof.payload.ath {
+                Some(ath) if ath == expected_ath => {}
+                Some(_) => {
+                    return Err(CatError::DpopValidationFailed(
+                        "Access token hash mismatch".to_string(),
+                    ));
+                }
+                None => {
+                    return Err(CatError::DpopValidationFailed(
+                        "Missing access token hash (ath) in proof".to_string(),
+                    ));
+                }
+            }
         }
 
         if self.settings.should_honor_jti() {
@@ -368,6 +398,13 @@ pub fn construct_moqt_uri(
 
 pub fn generate_jti() -> String {
     uuid::Uuid::new_v4().to_string()
+}
+
+/// Compute access token hash (ath) for DPoP binding
+/// Returns base64url-encoded SHA-256 hash of the access token
+pub fn compute_access_token_hash(access_token: &str) -> String {
+    let hash = crate::crypto::hash_sha256(access_token.as_bytes());
+    URL_SAFE_NO_PAD.encode(hash)
 }
 
 #[cfg(test)]
