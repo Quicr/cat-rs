@@ -329,17 +329,17 @@ impl DpopValidator {
             }
         }
 
-        if self.settings.should_honor_jti() {
-            if let Some(ref jti) = proof.payload.jti {
-                let mut jtis = self
-                    .used_jtis
-                    .write()
-                    .map_err(|_| CatError::CryptoError("Lock poisoned".to_string()))?;
-                if jtis.contains_key(jti) {
-                    return Err(CatError::ReplayAttackDetected);
-                }
-                jtis.insert(jti.clone(), proof.payload.iat);
+        if self.settings.should_honor_jti()
+            && let Some(ref jti) = proof.payload.jti
+        {
+            let mut jtis = self
+                .used_jtis
+                .write()
+                .map_err(|_| CatError::CryptoError("Lock poisoned".to_string()))?;
+            if jtis.contains_key(jti) {
+                return Err(CatError::ReplayAttackDetected);
             }
+            jtis.insert(jti.clone(), proof.payload.iat);
         }
 
         Ok(())
@@ -443,7 +443,7 @@ mod tests {
         proof.sign(&alg).unwrap();
 
         let settings = CatDpopSettings::new().with_window(300);
-        let mut validator = DpopValidator::new(settings);
+        let validator = DpopValidator::new(settings);
 
         validator
             .validate(&proof, MoqtAction::Subscribe, &thumbprint)
