@@ -8,6 +8,7 @@ pub mod dpop;
 pub mod error;
 pub mod jwk;
 pub mod moqt;
+pub mod prelude;
 pub mod token;
 
 // Conditional trie module selection based on features
