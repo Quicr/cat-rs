@@ -227,8 +227,7 @@ impl Cwt {
             claims_map.insert(CLAIM_CATR, Value::Text(catr.clone()));
         }
 
-        // MOQT claims per spec CDDL:
-        // moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
+        #[cfg(feature = "moqt")]
         if let Some(ref moqt_scopes) = self.payload.moqt.moqt {
             let scopes_array: Vec<Value> = moqt_scopes
                 .iter()
@@ -241,7 +240,6 @@ impl Cwt {
 
                     let mut scope_array = vec![Value::Array(actions)];
 
-                    // Add namespace matches if present
                     if !scope.namespace_matches.is_empty() {
                         let ns_matches: Vec<Value> = scope
                             .namespace_matches
@@ -251,9 +249,7 @@ impl Cwt {
                         scope_array.push(Value::Array(ns_matches));
                     }
 
-                    // Add track match if present (only if we have ns matches or need track)
                     if let Some(ref track_match) = scope.track_match {
-                        // Ensure we have namespace matches array (even if empty) before track
                         if scope.namespace_matches.is_empty() {
                             scope_array.push(Value::Array(vec![]));
                         }
@@ -266,6 +262,7 @@ impl Cwt {
             claims_map.insert(CLAIM_MOQT, Value::Array(scopes_array));
         }
 
+        #[cfg(feature = "moqt")]
         if let Some(moqt_reval) = self.payload.moqt.moqt_reval {
             claims_map.insert(CLAIM_MOQT_REVAL, Value::Float(moqt_reval));
         }
@@ -287,11 +284,7 @@ impl Cwt {
     }
 }
 
-/// Encode binary match per spec CDDL:
-/// bin-match = bstr / [ match-type, match-value ]
-/// match-type = prefix-match / suffix-match
-/// prefix-match = 1
-/// suffix-match = 2
+#[cfg(feature = "moqt")]
 fn encode_binary_match(binary_match: &crate::claims::BinaryMatch) -> Value {
     if binary_match.is_empty() {
         return Value::Bytes(vec![]);
@@ -310,7 +303,7 @@ fn encode_binary_match(binary_match: &crate::claims::BinaryMatch) -> Value {
     }
 }
 
-/// Encode namespace match (can be bin-match or nil)
+#[cfg(feature = "moqt")]
 fn encode_namespace_match(ns_match: &crate::claims::NamespaceMatch) -> Value {
     match ns_match {
         NamespaceMatch::Nil => Value::Null,
@@ -318,10 +311,9 @@ fn encode_namespace_match(ns_match: &crate::claims::NamespaceMatch) -> Value {
     }
 }
 
-/// Decode binary match from CBOR
+#[cfg(feature = "moqt")]
 fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatError> {
     match value {
-        // Exact match: just a byte string
         Value::Bytes(data) => {
             if data.is_empty() {
                 Ok(BinaryMatch::any())
@@ -329,7 +321,6 @@ fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatE
                 Ok(BinaryMatch::exact(data.clone()))
             }
         }
-        // Prefix or suffix match: [match-type, match-value]
         Value::Array(arr) if arr.len() == 2 => {
             let match_type = match &arr[0] {
                 Value::Integer(i) => {
@@ -356,7 +347,7 @@ fn decode_binary_match(value: &Value) -> Result<crate::claims::BinaryMatch, CatE
     }
 }
 
-/// Decode namespace match (bin-match or nil)
+#[cfg(feature = "moqt")]
 fn decode_namespace_match(value: &Value) -> Result<crate::claims::NamespaceMatch, CatError> {
     match value {
         Value::Null => Ok(NamespaceMatch::Nil),
@@ -414,6 +405,7 @@ impl Cwt {
             catr: None,
         };
 
+        #[cfg(feature = "moqt")]
         let mut moqt = crate::claims::MoqtClaims {
             moqt: None,
             moqt_reval: None,
@@ -707,8 +699,8 @@ impl Cwt {
                         request.catr = Some(s);
                     }
                 }
+                #[cfg(feature = "moqt")]
                 CLAIM_MOQT => {
-                    // moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
                     if let Value::Array(scopes_array) = value {
                         let mut scopes = Vec::new();
                         for scope_value in scopes_array {
@@ -717,7 +709,6 @@ impl Cwt {
                                     continue;
                                 }
 
-                                // Parse actions (required, first element)
                                 let mut actions = Vec::new();
                                 if let Value::Array(ref actions_array) = scope_array[0] {
                                     for action_value in actions_array {
@@ -733,7 +724,6 @@ impl Cwt {
                                 let mut namespace_matches = Vec::new();
                                 let mut track_match = None;
 
-                                // Parse namespace matches (optional, second element)
                                 if scope_array.len() > 1
                                     && let Value::Array(ref ns_array) = scope_array[1]
                                 {
@@ -742,7 +732,6 @@ impl Cwt {
                                     }
                                 }
 
-                                // Parse track match (optional, third element)
                                 if scope_array.len() > 2 {
                                     track_match = Some(decode_binary_match(&scope_array[2])?);
                                 }
@@ -757,6 +746,7 @@ impl Cwt {
                         moqt.moqt = Some(scopes);
                     }
                 }
+                #[cfg(feature = "moqt")]
                 CLAIM_MOQT_REVAL => {
                     if let Value::Float(f) = value {
                         moqt.moqt_reval = Some(f);
@@ -779,6 +769,7 @@ impl Cwt {
             dpop,
             request,
             composite: crate::claims::CompositeClaims::default(),
+            #[cfg(feature = "moqt")]
             moqt,
             custom,
         })

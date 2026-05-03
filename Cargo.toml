@@ -63,6 +63,7 @@ name = "trie_bench"
 harness = false
 
 [features]
-default = ["builtin-trie"]
+default = ["builtin-trie", "moqt"]
 builtin-trie = []
 qp-trie = ["dep:qp-trie"]
+moqt = []

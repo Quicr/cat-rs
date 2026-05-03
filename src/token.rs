@@ -296,16 +296,19 @@ impl CatTokenBuilder {
         self
     }
 
+    #[cfg(feature = "moqt")]
     pub fn moqt_scopes(mut self, scopes: Vec<crate::claims::MoqtScope>) -> Self {
         self.inner = self.inner.with_moqt_scopes(scopes);
         self
     }
 
+    #[cfg(feature = "moqt")]
     pub fn moqt_scope(mut self, scope: crate::claims::MoqtScope) -> Self {
         self.inner = self.inner.with_moqt_scope(scope);
         self
     }
 
+    #[cfg(feature = "moqt")]
     pub fn moqt_reval(mut self, interval_seconds: f64) -> Self {
         self.inner = self.inner.with_moqt_reval(interval_seconds);
         self

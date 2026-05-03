@@ -334,6 +334,7 @@ pub enum NetworkIdentifier {
     AsnRange(u32, u32),
 }
 
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MoqtAction {
     ClientSetup = 0,
@@ -347,10 +348,12 @@ pub enum MoqtAction {
     TrackStatus = 8,
 }
 
-// Keep backwards compatibility alias
+#[cfg(feature = "moqt")]
 pub type Announce = MoqtAction;
+#[cfg(feature = "moqt")]
 pub type SubscribeUpdate = MoqtAction;
 
+#[cfg(feature = "moqt")]
 impl MoqtAction {
     pub const ANNOUNCE: MoqtAction = MoqtAction::PublishNamespace;
     pub const SUBSCRIBE_UPDATE: MoqtAction = MoqtAction::RequestUpdate;
@@ -374,6 +377,7 @@ impl MoqtAction {
     }
 }
 
+#[cfg(feature = "moqt")]
 impl From<i32> for MoqtAction {
     fn from(value: i32) -> Self {
         match value {
@@ -391,7 +395,7 @@ impl From<i32> for MoqtAction {
     }
 }
 
-/// Binary match type per CAT-4-MOQT spec
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum BinaryMatchType {
     Exact = 0,
@@ -399,14 +403,14 @@ pub enum BinaryMatchType {
     Suffix = 2,
 }
 
-/// Binary match structure per CAT-4-MOQT spec CDDL:
-/// bin-match = bstr / [ match-type, match-value ]
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BinaryMatch {
     pub match_type: BinaryMatchType,
     pub pattern: Vec<u8>,
 }
 
+#[cfg(feature = "moqt")]
 impl Default for BinaryMatch {
     fn default() -> Self {
         Self {
@@ -416,6 +420,7 @@ impl Default for BinaryMatch {
     }
 }
 
+#[cfg(feature = "moqt")]
 impl BinaryMatch {
     pub fn any() -> Self {
         Self::default()
@@ -460,7 +465,7 @@ impl BinaryMatch {
 
     pub fn matches(&self, input: &[u8]) -> bool {
         if self.pattern.is_empty() {
-            return true; // Empty pattern matches everything
+            return true;
         }
 
         match self.match_type {
@@ -475,13 +480,14 @@ impl BinaryMatch {
     }
 }
 
-/// Namespace match entry - can be a BinaryMatch or Nil (for end-of-namespace-list)
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum NamespaceMatch {
     Match(BinaryMatch),
-    Nil, // Matches end of namespace list only
+    Nil,
 }
 
+#[cfg(feature = "moqt")]
 impl NamespaceMatch {
     pub fn exact(data: Vec<u8>) -> Self {
         Self::Match(BinaryMatch::exact(data))
@@ -501,7 +507,7 @@ impl NamespaceMatch {
 
     pub fn matches(&self, tuple_element: Option<&[u8]>) -> bool {
         match (self, tuple_element) {
-            (NamespaceMatch::Nil, None) => true, // Nil matches end of list
+            (NamespaceMatch::Nil, None) => true,
             (NamespaceMatch::Nil, Some(_)) => false,
             (NamespaceMatch::Match(_), None) => false,
             (NamespaceMatch::Match(m), Some(data)) => m.matches(data),
@@ -509,21 +515,22 @@ impl NamespaceMatch {
     }
 }
 
-/// MOQT Scope per spec CDDL:
-/// moqt-scope = [ moqt-actions, ? [ + moqt-ns-match ], ? moqt-track-match ]
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MoqtScope {
     pub actions: Vec<MoqtAction>,
-    pub namespace_matches: Vec<NamespaceMatch>, // Array of namespace tuple element matchers
-    pub track_match: Option<BinaryMatch>,       // Optional track match
+    pub namespace_matches: Vec<NamespaceMatch>,
+    pub track_match: Option<BinaryMatch>,
 }
 
+#[cfg(feature = "moqt")]
 impl Default for MoqtScope {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "moqt")]
 impl MoqtScope {
     pub fn new() -> Self {
         Self {
@@ -562,13 +569,8 @@ impl MoqtScope {
         self.actions.contains(action)
     }
 
-    /// Match a full track name (namespace tuple + track name)
-    /// namespace_tuple: the namespace as a sequence of tuple elements
-    /// track: the track name
     pub fn matches_full_track_name(&self, namespace_tuple: &[&[u8]], track: &[u8]) -> bool {
-        // Match namespace tuple elements
         if !self.namespace_matches.is_empty() {
-            // Each namespace_match[i] matches namespace_tuple[i]
             for (i, ns_match) in self.namespace_matches.iter().enumerate() {
                 let tuple_elem = namespace_tuple.get(i).copied();
                 if !ns_match.matches(tuple_elem) {
@@ -577,7 +579,6 @@ impl MoqtScope {
             }
         }
 
-        // Match track name
         if let Some(ref track_match) = self.track_match
             && !track_match.matches(track)
         {
@@ -587,7 +588,6 @@ impl MoqtScope {
         true
     }
 
-    /// Simple match for flat namespace (single element)
     pub fn matches_namespace(&self, namespace: &[u8]) -> bool {
         if self.namespace_matches.is_empty() {
             return true;
@@ -607,6 +607,7 @@ impl MoqtScope {
     }
 }
 
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MoqtClaims {
     pub moqt: Option<Vec<MoqtScope>>,
@@ -621,6 +622,7 @@ pub struct CatToken {
     pub dpop: DpopClaims,
     pub request: RequestClaims,
     pub composite: CompositeClaims,
+    #[cfg(feature = "moqt")]
     pub moqt: MoqtClaims,
     pub custom: HashMap<i64, ciborium::Value>,
 }
@@ -670,6 +672,7 @@ impl CatToken {
                 catr: None,
             },
             composite: CompositeClaims::default(),
+            #[cfg(feature = "moqt")]
             moqt: MoqtClaims {
                 moqt: None,
                 moqt_reval: None,
@@ -842,13 +845,13 @@ impl CatToken {
         self
     }
 
-    /// Add MOQT scopes
+    #[cfg(feature = "moqt")]
     pub fn with_moqt_scopes(mut self, scopes: Vec<MoqtScope>) -> Self {
         self.moqt.moqt = Some(scopes);
         self
     }
 
-    /// Add a single MOQT scope
+    #[cfg(feature = "moqt")]
     pub fn with_moqt_scope(mut self, scope: MoqtScope) -> Self {
         if let Some(ref mut scopes) = self.moqt.moqt {
             scopes.push(scope);
@@ -858,13 +861,13 @@ impl CatToken {
         self
     }
 
-    /// Set MOQT revalidation interval
+    #[cfg(feature = "moqt")]
     pub fn with_moqt_reval(mut self, interval_seconds: f64) -> Self {
         self.moqt.moqt_reval = Some(interval_seconds);
         self
     }
 
-    /// Check if token allows specific MOQT action for namespace and track
+    #[cfg(feature = "moqt")]
     pub fn allows_moqt_action(&self, action: &MoqtAction, namespace: &[u8], track: &[u8]) -> bool {
         if let Some(ref scopes) = self.moqt.moqt {
             scopes.iter().any(|scope| {
@@ -873,7 +876,7 @@ impl CatToken {
                     && scope.matches_track(track)
             })
         } else {
-            false // Default to blocked if no MOQT claims
+            false
         }
     }
 }

@@ -7,6 +7,7 @@ pub mod cwt;
 pub mod dpop;
 pub mod error;
 pub mod jwk;
+#[cfg(feature = "moqt")]
 pub mod moqt;
 pub mod prelude;
 pub mod token;
@@ -29,5 +30,6 @@ pub use cwt::*;
 pub use dpop::*;
 pub use error::*;
 pub use jwk::*;
+#[cfg(feature = "moqt")]
 pub use moqt::*;
 pub use token::*;

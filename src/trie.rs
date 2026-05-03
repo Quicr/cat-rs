@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TrieNode {
     pub children: HashMap<char, Box<TrieNode>>,
     pub is_terminal: bool,
@@ -13,15 +13,11 @@ pub struct TrieNode {
 
 impl TrieNode {
     pub fn new() -> Self {
-        Self {
-            children: HashMap::new(),
-            is_terminal: false,
-            value: None,
-        }
+        Self::default()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct PrefixTrie {
     pub root: TrieNode,
     pub size: usize,
@@ -29,10 +25,7 @@ pub struct PrefixTrie {
 
 impl PrefixTrie {
     pub fn new() -> Self {
-        Self {
-            root: TrieNode::new(),
-            size: 0,
-        }
+        Self::default()
     }
 
     pub fn insert(&mut self, pattern: &str, value: String) {
@@ -58,14 +51,14 @@ impl PrefixTrie {
         let mut current = &self.root;
         let chars: Vec<char> = text.chars().collect();
 
-        for (_i, &ch) in chars.iter().enumerate() {
+        for &ch in chars.iter() {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
 
-                if current.is_terminal {
-                    if let Some(ref value) = current.value {
-                        matches.push(value.as_str());
-                    }
+                if current.is_terminal
+                    && let Some(ref value) = current.value
+                {
+                    matches.push(value.as_str());
                 }
             } else {
                 break;
@@ -157,7 +150,7 @@ impl PrefixTrie {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct SuffixTrie {
     pub root: TrieNode,
     pub size: usize,
@@ -165,10 +158,7 @@ pub struct SuffixTrie {
 
 impl SuffixTrie {
     pub fn new() -> Self {
-        Self {
-            root: TrieNode::new(),
-            size: 0,
-        }
+        Self::default()
     }
 
     pub fn insert(&mut self, pattern: &str, value: String) {
@@ -199,10 +189,10 @@ impl SuffixTrie {
             if let Some(next_node) = current.children.get(&ch) {
                 current = next_node;
 
-                if current.is_terminal {
-                    if let Some(ref value) = current.value {
-                        matches.push(value.as_str());
-                    }
+                if current.is_terminal
+                    && let Some(ref value) = current.value
+                {
+                    matches.push(value.as_str());
                 }
             } else {
                 break;
@@ -299,6 +289,7 @@ impl SuffixTrie {
     }
 }
 
+#[derive(Default)]
 pub struct UriMatcher {
     prefix_trie: PrefixTrie,
     suffix_trie: SuffixTrie,
@@ -309,13 +300,7 @@ pub struct UriMatcher {
 
 impl UriMatcher {
     pub fn new() -> Self {
-        Self {
-            prefix_trie: PrefixTrie::new(),
-            suffix_trie: SuffixTrie::new(),
-            exact_patterns: HashMap::new(),
-            regex_patterns: Vec::new(),
-            hash_patterns: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn add_pattern(

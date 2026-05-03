@@ -1,13 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use crate::claims::{CatDpopSettings, ConfirmationClaim};
+use crate::CatError;
+#[cfg(feature = "moqt")]
+use crate::claims::CatDpopSettings;
+use crate::claims::ConfirmationClaim;
 use crate::jwk::Jwk;
-use crate::{CatError, CryptographicAlgorithm, MoqtAction};
+#[cfg(feature = "moqt")]
+use crate::{CryptographicAlgorithm, MoqtAction};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "moqt")]
 use std::collections::HashMap;
+#[cfg(feature = "moqt")]
 use std::sync::{Arc, RwLock};
+#[cfg(feature = "moqt")]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const DPOP_TYP: &str = "dpop+jwt";
@@ -33,6 +40,7 @@ impl DpopHeader {
     }
 }
 
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuthorizationContext {
     #[serde(rename = "type")]
@@ -44,6 +52,7 @@ pub struct AuthorizationContext {
     pub resource: Option<String>,
 }
 
+#[cfg(feature = "moqt")]
 impl AuthorizationContext {
     pub fn new_moqt(action: MoqtAction, namespace: &[u8], track: &[u8]) -> Self {
         Self {
@@ -78,6 +87,7 @@ impl AuthorizationContext {
     }
 }
 
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DpopPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,6 +98,7 @@ pub struct DpopPayload {
     pub ath: Option<String>,
 }
 
+#[cfg(feature = "moqt")]
 impl DpopPayload {
     pub fn new(actx: AuthorizationContext) -> Self {
         let now = SystemTime::now()
@@ -139,6 +150,7 @@ pub fn confirmation_matches_jwk(cnf: &ConfirmationClaim, jwk: &Jwk) -> Result<bo
     Ok(crate::crypto::constant_time_eq(&cnf.jkt, &thumbprint))
 }
 
+#[cfg(feature = "moqt")]
 #[derive(Debug, Clone)]
 pub struct DpopProof {
     pub header: DpopHeader,
@@ -146,6 +158,7 @@ pub struct DpopProof {
     pub signature: Vec<u8>,
 }
 
+#[cfg(feature = "moqt")]
 impl DpopProof {
     pub fn new(header: DpopHeader, payload: DpopPayload, signature: Vec<u8>) -> Self {
         Self {
@@ -250,7 +263,7 @@ impl DpopProof {
     }
 }
 
-/// Thread-safe DPoP validator with replay protection
+#[cfg(feature = "moqt")]
 #[derive(Clone)]
 pub struct DpopValidator {
     settings: CatDpopSettings,
@@ -258,6 +271,7 @@ pub struct DpopValidator {
     jti_expiry_seconds: i64,
 }
 
+#[cfg(feature = "moqt")]
 impl DpopValidator {
     pub fn new(settings: CatDpopSettings) -> Self {
         Self {
@@ -267,8 +281,6 @@ impl DpopValidator {
         }
     }
 
-    /// Validate DPoP proof
-    /// - `access_token_hash`: Optional SHA-256 hash of the access token (for ath claim validation)
     pub fn validate(
         &self,
         proof: &DpopProof,
@@ -278,7 +290,6 @@ impl DpopValidator {
         self.validate_with_ath(proof, expected_action, expected_thumbprint, None)
     }
 
-    /// Validate DPoP proof with access token hash verification
     pub fn validate_with_ath(
         &self,
         proof: &DpopProof,
@@ -312,7 +323,6 @@ impl DpopValidator {
             return Err(CatError::InvalidDpopBinding);
         }
 
-        // Validate access token hash if provided
         if let Some(expected_ath) = access_token_hash {
             match &proof.payload.ath {
                 Some(ath) if ath == expected_ath => {}
@@ -374,6 +384,7 @@ impl DpopValidator {
     }
 }
 
+#[cfg(feature = "moqt")]
 pub fn construct_moqt_uri(
     endpoint: &str,
     namespace: Option<&[u8]>,
@@ -412,6 +423,7 @@ mod tests {
     use super::*;
     use crate::Es256Algorithm;
 
+    #[cfg(feature = "moqt")]
     #[test]
     fn test_dpop_proof_creation() {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
@@ -430,6 +442,7 @@ mod tests {
         assert_eq!(decoded.payload.actx.action, MoqtAction::Subscribe as i32);
     }
 
+    #[cfg(feature = "moqt")]
     #[test]
     fn test_dpop_validation() {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
@@ -450,6 +463,7 @@ mod tests {
             .unwrap();
     }
 
+    #[cfg(feature = "moqt")]
     #[test]
     fn test_moqt_uri_construction() {
         let uri = construct_moqt_uri("relay.example.com", None, None);
@@ -460,6 +474,7 @@ mod tests {
         assert!(uri.contains("&tn="));
     }
 
+    #[cfg(feature = "moqt")]
     #[test]
     fn test_authorization_context() {
         let actx =
