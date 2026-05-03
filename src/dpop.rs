@@ -133,10 +133,10 @@ pub fn confirmation_from_jwk(jwk: &Jwk) -> Result<ConfirmationClaim, CatError> {
     Ok(ConfirmationClaim::new(thumbprint))
 }
 
-/// Check if a ConfirmationClaim matches a JWK
+/// Check if a ConfirmationClaim matches a JWK (constant-time comparison)
 pub fn confirmation_matches_jwk(cnf: &ConfirmationClaim, jwk: &Jwk) -> Result<bool, CatError> {
     let thumbprint = jwk.thumbprint()?;
-    Ok(cnf.jkt == thumbprint)
+    Ok(crate::crypto::constant_time_eq(&cnf.jkt, &thumbprint))
 }
 
 #[derive(Debug, Clone)]
@@ -308,7 +308,7 @@ impl DpopValidator {
         }
 
         let jwk_thumbprint = proof.header.jwk.thumbprint()?;
-        if jwk_thumbprint != expected_thumbprint {
+        if !crate::crypto::constant_time_eq(&jwk_thumbprint, expected_thumbprint) {
             return Err(CatError::InvalidDpopBinding);
         }
 

@@ -187,3 +187,15 @@ pub fn create_signing_input(header: &[u8], payload: &[u8]) -> Vec<u8> {
 pub fn hash_sha256(data: &[u8]) -> Vec<u8> {
     digest::digest(&digest::SHA256, data).as_ref().to_vec()
 }
+
+/// Constant-time comparison to prevent timing attacks
+#[inline]
+pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
