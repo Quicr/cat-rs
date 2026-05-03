@@ -7,6 +7,7 @@ use crate::{CatError, CryptographicAlgorithm, MoqtAction};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const DPOP_TYP: &str = "dpop+jwt";
@@ -249,9 +250,11 @@ impl DpopProof {
     }
 }
 
+/// Thread-safe DPoP validator with replay protection
+#[derive(Clone)]
 pub struct DpopValidator {
     settings: CatDpopSettings,
-    used_jtis: HashMap<String, i64>,
+    used_jtis: Arc<RwLock<HashMap<String, i64>>>,
     jti_expiry_seconds: i64,
 }
 
@@ -260,12 +263,12 @@ impl DpopValidator {
         Self {
             jti_expiry_seconds: settings.effective_window() * 2,
             settings,
-            used_jtis: HashMap::new(),
+            used_jtis: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub fn validate(
-        &mut self,
+        &self,
         proof: &DpopProof,
         expected_action: MoqtAction,
         expected_thumbprint: &[u8],
@@ -296,20 +299,24 @@ impl DpopValidator {
             return Err(CatError::InvalidDpopBinding);
         }
 
-        if self.settings.should_honor_jti()
-            && let Some(ref jti) = proof.payload.jti
-        {
-            if self.used_jtis.contains_key(jti) {
-                return Err(CatError::ReplayAttackDetected);
+        if self.settings.should_honor_jti() {
+            if let Some(ref jti) = proof.payload.jti {
+                let mut jtis = self
+                    .used_jtis
+                    .write()
+                    .map_err(|_| CatError::CryptoError("Lock poisoned".to_string()))?;
+                if jtis.contains_key(jti) {
+                    return Err(CatError::ReplayAttackDetected);
+                }
+                jtis.insert(jti.clone(), proof.payload.iat);
             }
-            self.used_jtis.insert(jti.clone(), proof.payload.iat);
         }
 
         Ok(())
     }
 
     pub fn validate_with_algorithm(
-        &mut self,
+        &self,
         proof: &DpopProof,
         expected_action: MoqtAction,
         expected_thumbprint: &[u8],
@@ -325,14 +332,15 @@ impl DpopValidator {
         Ok(())
     }
 
-    pub fn cleanup_expired_jtis(&mut self) {
+    pub fn cleanup_expired_jtis(&self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or(Duration::ZERO)
             .as_secs() as i64;
 
-        self.used_jtis
-            .retain(|_, &mut iat| now - iat < self.jti_expiry_seconds);
+        if let Ok(mut jtis) = self.used_jtis.write() {
+            jtis.retain(|_, &mut iat| now - iat < self.jti_expiry_seconds);
+        }
     }
 }
 

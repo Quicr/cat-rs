@@ -186,7 +186,7 @@ impl MoqtValidator {
 
     /// Authorize with DPoP proof validation
     pub fn authorize_with_dpop(
-        &mut self,
+        &self,
         token: &CatToken,
         request: &MoqtAuthRequest,
     ) -> Result<MoqtAuthResult, CatError> {
@@ -205,7 +205,7 @@ impl MoqtValidator {
             })?;
 
             // Validate DPoP proof
-            let validator = self.dpop_validator.as_mut().ok_or_else(|| {
+            let validator = self.dpop_validator.as_ref().ok_or_else(|| {
                 CatError::DpopValidationFailed("DPoP validation not configured".to_string())
             })?;
 
