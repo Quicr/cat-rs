@@ -19,8 +19,11 @@ use cat_impl::{decode_token, encode_token};
 use chrono::{Duration, Utc};
 
 fn print_header(title: &str) {
-    println!("
-{}", "=".repeat(60));
+    println!(
+        "
+{}",
+        "=".repeat(60)
+    );
     println!("{}", title);
     println!("{}", "=".repeat(60));
 }
@@ -54,8 +57,10 @@ fn demonstrate_basic_moqt_token() {
     println!("  Revalidation: 5 minutes");
 
     // Test authorization
-    println!("
-Testing authorization:");
+    println!(
+        "
+Testing authorization:"
+    );
 
     let test_cases = vec![
         (
@@ -144,8 +149,10 @@ fn demonstrate_spec_examples() {
         "/alice".as_bytes()
     ));
 
-    println!("
-Example 2: Prefix match from spec - 'example.com/bob*'");
+    println!(
+        "
+Example 2: Prefix match from spec - 'example.com/bob*'"
+    );
 
     let prefix_scope = MoqtScope::new()
         .with_actions(vec![
@@ -227,8 +234,10 @@ fn demonstrate_multiple_scopes() {
     println!("  Scope 2: Video on Demand (FETCH, SUBSCRIBE on vod.example.com/*.mp4)");
     println!("  Scope 3: Admin operations (multiple actions on admin.*/*admin*)");
 
-    println!("
-Testing multi-scope authorization:");
+    println!(
+        "
+Testing multi-scope authorization:"
+    );
 
     let test_cases = vec![
         // Live streaming tests
@@ -384,8 +393,10 @@ fn demonstrate_binary_matching_patterns() {
 
     // Exact match
     let exact_match = BinaryMatch::exact("live-stream".as_bytes().to_vec());
-    println!("
-Exact match for 'live-stream':");
+    println!(
+        "
+Exact match for 'live-stream':"
+    );
     println!(
         "  ✓ 'live-stream' -> {}",
         exact_match.matches("live-stream".as_bytes())
@@ -401,8 +412,10 @@ Exact match for 'live-stream':");
 
     // Prefix match
     let prefix_match = BinaryMatch::prefix("/api/v1/".as_bytes().to_vec());
-    println!("
-Prefix match for '/api/v1/':");
+    println!(
+        "
+Prefix match for '/api/v1/':"
+    );
     println!(
         "  ✓ '/api/v1/streams' -> {}",
         prefix_match.matches("/api/v1/streams".as_bytes())
@@ -422,8 +435,10 @@ Prefix match for '/api/v1/':");
 
     // Suffix match
     let suffix_match = BinaryMatch::suffix(".webm".as_bytes().to_vec());
-    println!("
-Suffix match for '.webm':");
+    println!(
+        "
+Suffix match for '.webm':"
+    );
     println!(
         "  ✓ 'video.webm' -> {}",
         suffix_match.matches("video.webm".as_bytes())
@@ -445,8 +460,10 @@ Suffix match for '.webm':");
 
     // Empty match (matches everything)
     let empty_match = BinaryMatch::default();
-    println!("
-Empty match (allows all):");
+    println!(
+        "
+Empty match (allows all):"
+    );
     println!(
         "  ✓ 'anything' -> {}",
         empty_match.matches("anything".as_bytes())
@@ -522,8 +539,10 @@ fn demonstrate_revalidation_claim() {
 
     println!("✓ Persistent token: no revalidation required");
 
-    println!("
-Revalidation intervals:");
+    println!(
+        "
+Revalidation intervals:"
+    );
     println!(
         "  Admin operations: {} seconds",
         admin_token.moqt.moqt_reval.unwrap_or(0.0)
@@ -576,15 +595,19 @@ fn demonstrate_dpop_integration() {
     println!("  Replay protection (jti): enabled");
     println!("  MOQT actions: ANNOUNCE, PUBLISH");
 
-    println!("
-DPoP Integration Benefits:");
+    println!(
+        "
+DPoP Integration Benefits:"
+    );
     println!("  🔒 Token binding to client key pair");
     println!("  🔄 Fresh DPoP proofs required for each action");
     println!("  🛡️  Theft prevention (stolen tokens unusable)");
     println!("  ✅ Enhanced trust verification");
 
-    println!("
-MOQT Action to HTTP Method Mapping (for DPoP):");
+    println!(
+        "
+MOQT Action to HTTP Method Mapping (for DPoP):"
+    );
     println!("  CLIENT_SETUP    -> POST");
     println!("  SERVER_SETUP    -> POST");
     println!("  ANNOUNCE        -> PUT");
@@ -614,7 +637,9 @@ fn main() {
     println!("🔐 Integration with DPoP for proof-of-possession");
     println!("📊 Multiple scopes for complex authorization scenarios");
     println!("🔧 Comprehensive encoding/decoding with full CBOR serialization");
-    println!("
-MOQT claims enable secure, scalable media distribution with");
+    println!(
+        "
+MOQT claims enable secure, scalable media distribution with"
+    );
     println!("precise access control at the namespace and track level.");
 }

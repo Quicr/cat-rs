@@ -18,8 +18,11 @@ use cat_impl::token::CatTokenValidator;
 use chrono::{Duration, Utc};
 
 fn print_header(title: &str) {
-    println!("
-{}", "=".repeat(50));
+    println!(
+        "
+{}",
+        "=".repeat(50)
+    );
     println!("{}", title);
     println!("{}", "=".repeat(50));
 }
