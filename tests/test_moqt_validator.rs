@@ -342,10 +342,17 @@ fn test_moqt_validator_concurrent_access() {
         let handle = thread::spawn(move || {
             for j in 0..100 {
                 let track = format!("/stream/{}/{}", i, j);
-                let request =
-                    MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", track.as_bytes());
+                let request = MoqtAuthRequest::simple(
+                    MoqtAction::Publish,
+                    b"cdn.example.com",
+                    track.as_bytes(),
+                );
                 let result = validator.authorize(&token, &request);
-                assert!(result.authorized, "Thread {} iter {} should be authorized", i, j);
+                assert!(
+                    result.authorized,
+                    "Thread {} iter {} should be authorized",
+                    i, j
+                );
             }
         });
 
@@ -359,7 +366,9 @@ fn test_moqt_validator_concurrent_access() {
 
 #[test]
 fn test_dpop_validator_concurrent_jti() {
-    let settings = CatDpopSettings::new().with_window(300).with_jti_processing(true);
+    let settings = CatDpopSettings::new()
+        .with_window(300)
+        .with_jti_processing(true);
     let validator = Arc::new(DpopValidator::new(settings));
 
     let alg = Es256Algorithm::new_with_key_pair().unwrap();

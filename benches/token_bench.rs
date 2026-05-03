@@ -184,8 +184,7 @@ fn bench_moqt_authorization(c: &mut Criterion) {
     });
 
     // Multi-scope - no match
-    let no_match_request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-99", b"/track");
+    let no_match_request = MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-99", b"/track");
 
     group.bench_function("multi_scope_no_match", |b| {
         b.iter(|| black_box(validator.authorize(&multi_scope_token, &no_match_request)))
