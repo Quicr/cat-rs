@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
+use cat_impl::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator};
 use cat_impl::*;
 use chrono::{Duration, Utc};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn create_simple_token() -> CatToken {
     let now = Utc::now();
@@ -116,10 +117,136 @@ fn bench_token_cloning(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_moqt_authorization(c: &mut Criterion) {
+    let mut group = c.benchmark_group("moqt_authorization");
+
+    // Single scope token
+    let single_scope = MoqtScopeBuilder::new()
+        .full_access()
+        .namespace_prefix(b"cdn.")
+        .track_prefix(b"/stream/")
+        .build();
+
+    let single_scope_token = CatTokenBuilder::new()
+        .issuer("https://auth.example.com")
+        .moqt_scope(single_scope)
+        .build();
+
+    // Multi-scope token (10 scopes)
+    let multi_scopes: Vec<_> = (0..10)
+        .map(|i| {
+            MoqtScopeBuilder::new()
+                .action(MoqtAction::Publish)
+                .action(MoqtAction::Subscribe)
+                .namespace_exact(format!("namespace-{}", i).as_bytes())
+                .track_prefix(b"/")
+                .build()
+        })
+        .collect();
+
+    let multi_scope_token = CatTokenBuilder::new()
+        .issuer("https://auth.example.com")
+        .moqt_scopes(multi_scopes)
+        .build();
+
+    let validator = MoqtValidator::new();
+
+    // Matching request (single scope)
+    let matching_request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/stream/live");
+
+    group.bench_function("single_scope_match", |b| {
+        b.iter(|| black_box(validator.authorize(&single_scope_token, &matching_request)))
+    });
+
+    // Non-matching request (must check all scopes)
+    let non_matching_request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"other.com", b"/stream/live");
+
+    group.bench_function("single_scope_no_match", |b| {
+        b.iter(|| black_box(validator.authorize(&single_scope_token, &non_matching_request)))
+    });
+
+    // Multi-scope - first scope matches
+    let first_match_request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-0", b"/track");
+
+    group.bench_function("multi_scope_first_match", |b| {
+        b.iter(|| black_box(validator.authorize(&multi_scope_token, &first_match_request)))
+    });
+
+    // Multi-scope - last scope matches
+    let last_match_request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-9", b"/track");
+
+    group.bench_function("multi_scope_last_match", |b| {
+        b.iter(|| black_box(validator.authorize(&multi_scope_token, &last_match_request)))
+    });
+
+    // Multi-scope - no match
+    let no_match_request =
+        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-99", b"/track");
+
+    group.bench_function("multi_scope_no_match", |b| {
+        b.iter(|| black_box(validator.authorize(&multi_scope_token, &no_match_request)))
+    });
+
+    group.finish();
+}
+
+fn bench_moqt_throughput(c: &mut Criterion) {
+    let mut group = c.benchmark_group("moqt_throughput");
+
+    let scope = MoqtScopeBuilder::new()
+        .full_access()
+        .namespace_prefix(b"cdn.")
+        .build();
+
+    let token = CatTokenBuilder::new()
+        .issuer("https://auth.example.com")
+        .moqt_scope(scope)
+        .build();
+
+    let validator = MoqtValidator::new();
+
+    // Simulate batch authorization (100K ops target)
+    for batch_size in [1000, 10000, 100000].iter() {
+        group.bench_with_input(
+            BenchmarkId::new("batch_authorize", batch_size),
+            batch_size,
+            |b, &size| {
+                let requests: Vec<_> = (0..size)
+                    .map(|i| {
+                        MoqtAuthRequest::simple(
+                            MoqtAction::Publish,
+                            b"cdn.example.com",
+                            format!("/stream/{}", i).as_bytes(),
+                        )
+                    })
+                    .collect();
+
+                b.iter(|| {
+                    let mut authorized = 0;
+                    for req in &requests {
+                        if validator.authorize(&token, req).authorized {
+                            authorized += 1;
+                        }
+                    }
+                    black_box(authorized)
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_token_creation,
     bench_token_validation,
-    bench_token_cloning
+    bench_token_cloning,
+    bench_moqt_authorization,
+    bench_moqt_throughput
 );
 criterion_main!(benches);
