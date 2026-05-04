@@ -18,8 +18,22 @@ Tested on Linux, macOS, and Windows.
 ## Build
 
 ```bash
+# Build with MOQT support (default)
 cargo build --release
+
+# Build without MOQT (generic CAT only)
+cargo build --release --no-default-features --features builtin-trie
 ```
+
+## Feature Flags
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `moqt` | Yes | MOQT-specific claims, scopes, and DPoP validation |
+| `builtin-trie` | Yes | Built-in trie for URI pattern matching |
+| `qp-trie` | No | Use qp-trie crate instead of built-in trie |
+
+For generic CAT tokens without MOQT, disable the `moqt` feature. See [`examples/generic_cat.rs`](examples/generic_cat.rs) for usage.
 
 ## Test
 
