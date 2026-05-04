@@ -4,12 +4,7 @@
 
 
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
-
-| Platform | Status |
-|----------|--------|
-| Linux | [![Ubuntu](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Aubuntu-latest) |
-| macOS | [![macOS](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Amacos-latest) |
-| Windows | [![Windows](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Awindows-latest) |
+Linux: [![Ubuntu](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Aubuntu-latest) macOS | [![macOS](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Amacos-latest) Windows | [![Windows](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml?query=branch%3Amain+os%3Awindows-latest)
 
 Rust implementation of [Common Access Token for Media Over QUIC Transport (CAT-4-MOQT)](https://github.com/moq-wg/CAT-4-MOQT) based on [CTA-5007-B](https://shop.cta.tech/products/common-access-token).
 
