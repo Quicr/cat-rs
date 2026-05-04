@@ -7,8 +7,6 @@
 
 Rust implementation of [Common Access Token for Media Over QUIC Transport (CAT-4-MOQT)](https://github.com/moq-wg/CAT-4-MOQT) based on [CTA-5007-B](https://shop.cta.tech/products/common-access-token).
 
-Tested on Linux, macOS, and Windows.
-
 ## Features
 
 - Full CTA-5007-B CAT token support with CBOR/CWT encoding
