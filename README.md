@@ -3,9 +3,7 @@
 </p>
 
 
-[![Linux](https://img.shields.io/github/actions/workflow/status/Quicr/cat-rs/ci.yml?branch=main&label=Linux&logo=linux&logoColor=white)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/github/actions/workflow/status/Quicr/cat-rs/ci.yml?branch=main&label=macOS&logo=apple&logoColor=white)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml)
-[![Windows](https://img.shields.io/github/actions/workflow/status/Quicr/cat-rs/ci.yml?branch=main&label=Windows&logo=windows&logoColor=white)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml)
+[![CI](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
 Rust implementation of [Common Access Token for Media Over QUIC Transport (CAT-4-MOQT)](https://github.com/moq-wg/CAT-4-MOQT) based on [CTA-5007-B](https://shop.cta.tech/products/common-access-token).
