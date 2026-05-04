@@ -3,7 +3,6 @@
 </p>
 
 
-[![CI](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Quicr/cat-rs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
 | Platform | Status |
