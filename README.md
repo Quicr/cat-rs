@@ -2,7 +2,6 @@
   <img src="logo.svg" alt="CAT for MOQ Logo" width="240">
 </p>
 
-# CAT-4-MOQT
 
 [![CI](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml/badge.svg)](https://github.com/suhasHere/cat.rs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
