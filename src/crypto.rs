@@ -84,9 +84,7 @@ impl HmacSha256Algorithm {
 
     /// Create from a SecretKey (preferred - auto-zeroizes on drop)
     pub fn from_secret_key(key: &SecretKey) -> Self {
-        Self {
-            key: key.0.clone(),
-        }
+        Self { key: key.0.clone() }
     }
 
     /// Generate a new random key with auto-zeroize on drop

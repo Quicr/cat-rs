@@ -444,8 +444,8 @@ pub fn decode_token(
 }
 
 fn extract_algorithm_from_header(header_cbor: &[u8]) -> Result<i64, CatError> {
-    let value: ciborium::Value = ciborium::de::from_reader(header_cbor)
-        .map_err(|e| CatError::InvalidCbor(e.to_string()))?;
+    let value: ciborium::Value =
+        ciborium::de::from_reader(header_cbor).map_err(|e| CatError::InvalidCbor(e.to_string()))?;
 
     let map = match value {
         ciborium::Value::Map(m) => m,

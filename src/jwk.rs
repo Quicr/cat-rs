@@ -250,7 +250,10 @@ mod tests {
 
         let canonical = jwk.canonical_json().unwrap();
         // RFC 7638 requires alphabetical ordering: crv, kty, x, y
-        assert_eq!(canonical, r#"{"crv":"P-256","kty":"EC","x":"x_value","y":"y_value"}"#);
+        assert_eq!(
+            canonical,
+            r#"{"crv":"P-256","kty":"EC","x":"x_value","y":"y_value"}"#
+        );
     }
 
     /// Verify canonical JSON field ordering for RSA keys per RFC 7638

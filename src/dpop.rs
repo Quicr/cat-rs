@@ -9,9 +9,9 @@ use crate::jwk::Jwk;
 #[cfg(feature = "moqt")]
 use crate::{CryptographicAlgorithm, MoqtAction};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "moqt")]
 use lru::LruCache;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "moqt")]
 use std::num::NonZeroUsize;
 #[cfg(feature = "moqt")]
@@ -370,8 +370,8 @@ impl DpopValidator {
         // Enforce minimum cache size for meaningful replay protection
         let effective_size = cache_size.max(MIN_JTI_CACHE_SIZE);
         // SAFETY: effective_size >= MIN_JTI_CACHE_SIZE (1000), so always non-zero
-        let nz_cache_size = NonZeroUsize::new(effective_size)
-            .expect("MIN_JTI_CACHE_SIZE guarantees non-zero");
+        let nz_cache_size =
+            NonZeroUsize::new(effective_size).expect("MIN_JTI_CACHE_SIZE guarantees non-zero");
         Self {
             jti_expiry_seconds: settings.effective_window() * 2,
             settings,
@@ -386,11 +386,7 @@ impl DpopValidator {
     /// consider increasing the cache size or reducing the validation window
     /// to prevent potential replay attacks due to early eviction.
     pub fn jti_cache_stats(&self) -> JtiCacheStats {
-        let size = self
-            .used_jtis
-            .read()
-            .map(|cache| cache.len())
-            .unwrap_or(0);
+        let size = self.used_jtis.read().map(|cache| cache.len()).unwrap_or(0);
         let under_pressure = size >= (self.cache_capacity * 9 / 10);
         JtiCacheStats {
             size,
@@ -496,7 +492,12 @@ impl DpopValidator {
         algorithm: &dyn CryptographicAlgorithm,
         access_token_hash: Option<&str>,
     ) -> Result<(), CatError> {
-        self.validate_claims(proof, expected_action, expected_thumbprint, access_token_hash)?;
+        self.validate_claims(
+            proof,
+            expected_action,
+            expected_thumbprint,
+            access_token_hash,
+        )?;
 
         let signing_input = proof.signing_input()?;
         if !algorithm.verify(&signing_input, &proof.signature)? {

@@ -567,12 +567,9 @@ impl Cwt {
                 CLAIM_CTI => match value {
                     Value::Bytes(b) => {
                         // Reject invalid UTF-8 instead of silently replacing
-                        core.cti = Some(
-                            String::from_utf8(b)
-                                .map_err(|_| CatError::InvalidClaimValue(
-                                    "CTI contains invalid UTF-8".to_string()
-                                ))?
-                        );
+                        core.cti = Some(String::from_utf8(b).map_err(|_| {
+                            CatError::InvalidClaimValue("CTI contains invalid UTF-8".to_string())
+                        })?);
                     }
                     Value::Text(s) => {
                         core.cti = Some(s);
@@ -810,13 +807,15 @@ impl Cwt {
                                     0 => {
                                         if let Value::Integer(window) = v {
                                             // Reject invalid window values instead of defaulting
-                                            let window_val: i64 = window.try_into()
-                                                .map_err(|_| CatError::InvalidClaimValue(
-                                                    "Invalid DPoP window value".to_string()
-                                                ))?;
+                                            let window_val: i64 =
+                                                window.try_into().map_err(|_| {
+                                                    CatError::InvalidClaimValue(
+                                                        "Invalid DPoP window value".to_string(),
+                                                    )
+                                                })?;
                                             if window_val <= 0 {
                                                 return Err(CatError::InvalidClaimValue(
-                                                    "DPoP window must be positive".to_string()
+                                                    "DPoP window must be positive".to_string(),
                                                 ));
                                             }
                                             settings.window = Some(window_val);
@@ -875,7 +874,10 @@ impl Cwt {
                                                 Ok(action) => actions.push(action),
                                                 Err(_) => {
                                                     return Err(CatError::InvalidClaimValue(
-                                                        format!("Invalid MOQT action: {}", action_i32),
+                                                        format!(
+                                                            "Invalid MOQT action: {}",
+                                                            action_i32
+                                                        ),
                                                     ));
                                                 }
                                             }

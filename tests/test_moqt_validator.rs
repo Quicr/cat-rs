@@ -452,7 +452,8 @@ fn test_jti_cache_stats() {
         .with_jti(jti);
         proof.sign(&alg).unwrap();
 
-        let result = validator.validate_with_algorithm(&proof, MoqtAction::Publish, &thumbprint, &alg);
+        let result =
+            validator.validate_with_algorithm(&proof, MoqtAction::Publish, &thumbprint, &alg);
         assert!(result.is_ok(), "Validation should succeed for unique JTI");
     }
 

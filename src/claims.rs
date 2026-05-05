@@ -281,27 +281,31 @@ impl CompositeClaim {
         match self.op {
             CompositeOperator::Or => {
                 // At least one claim set must be acceptable
-                self.claims
-                    .iter()
-                    .any(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
+                self.claims.iter().any(|claim_set| {
+                    self.evaluate_claim_set_with_depth(claim_set, validator, depth)
+                })
             }
             CompositeOperator::Nor => {
                 // No claim sets can be acceptable
-                !self
-                    .claims
-                    .iter()
-                    .any(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
+                !self.claims.iter().any(|claim_set| {
+                    self.evaluate_claim_set_with_depth(claim_set, validator, depth)
+                })
             }
             CompositeOperator::And => {
                 // All claim sets must be acceptable
-                self.claims
-                    .iter()
-                    .all(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
+                self.claims.iter().all(|claim_set| {
+                    self.evaluate_claim_set_with_depth(claim_set, validator, depth)
+                })
             }
         }
     }
 
-    fn evaluate_claim_set_with_depth<V>(&self, claim_set: &ClaimSet, validator: &V, depth: usize) -> bool
+    fn evaluate_claim_set_with_depth<V>(
+        &self,
+        claim_set: &ClaimSet,
+        validator: &V,
+        depth: usize,
+    ) -> bool
     where
         V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
     {
@@ -477,8 +481,7 @@ impl NetworkIdentifier {
                 if range_size > MAX_REASONABLE_ASN_RANGE {
                     return Err(crate::CatError::InvalidClaimValue(format!(
                         "ASN range too broad: {} ASNs (max {} for meaningful network restriction)",
-                        range_size,
-                        MAX_REASONABLE_ASN_RANGE
+                        range_size, MAX_REASONABLE_ASN_RANGE
                     )));
                 }
             }

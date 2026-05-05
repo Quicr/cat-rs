@@ -639,8 +639,14 @@ fn test_moqt_action_conversion() {
     // Test TryFrom<i32> conversion
     assert_eq!(MoqtAction::try_from(0).unwrap(), MoqtAction::ClientSetup);
     assert_eq!(MoqtAction::try_from(1).unwrap(), MoqtAction::ServerSetup);
-    assert_eq!(MoqtAction::try_from(2).unwrap(), MoqtAction::PublishNamespace);
-    assert_eq!(MoqtAction::try_from(3).unwrap(), MoqtAction::SubscribeNamespace);
+    assert_eq!(
+        MoqtAction::try_from(2).unwrap(),
+        MoqtAction::PublishNamespace
+    );
+    assert_eq!(
+        MoqtAction::try_from(3).unwrap(),
+        MoqtAction::SubscribeNamespace
+    );
     assert_eq!(MoqtAction::try_from(4).unwrap(), MoqtAction::Subscribe);
     assert_eq!(MoqtAction::try_from(5).unwrap(), MoqtAction::RequestUpdate);
     assert_eq!(MoqtAction::try_from(6).unwrap(), MoqtAction::Publish);
