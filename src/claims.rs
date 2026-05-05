@@ -248,10 +248,10 @@ impl CompositeClaim {
             return true;
         }
         for claim_set in &self.claims {
-            if let ClaimSet::Composite(composite) = claim_set {
-                if composite.check_depth_limit(current + 1, limit) {
-                    return true;
-                }
+            if let ClaimSet::Composite(composite) = claim_set
+                && composite.check_depth_limit(current + 1, limit)
+            {
+                return true;
             }
         }
         false
@@ -378,20 +378,20 @@ impl CompositeClaims {
 
     /// Check if any composite claim exceeds the depth limit
     pub fn exceeds_depth_limit(&self, limit: usize) -> bool {
-        if let Some(ref claim) = self.or_claim {
-            if claim.exceeds_depth_limit(limit) {
-                return true;
-            }
+        if let Some(ref claim) = self.or_claim
+            && claim.exceeds_depth_limit(limit)
+        {
+            return true;
         }
-        if let Some(ref claim) = self.nor_claim {
-            if claim.exceeds_depth_limit(limit) {
-                return true;
-            }
+        if let Some(ref claim) = self.nor_claim
+            && claim.exceeds_depth_limit(limit)
+        {
+            return true;
         }
-        if let Some(ref claim) = self.and_claim {
-            if claim.exceeds_depth_limit(limit) {
-                return true;
-            }
+        if let Some(ref claim) = self.and_claim
+            && claim.exceeds_depth_limit(limit)
+        {
+            return true;
         }
         false
     }
