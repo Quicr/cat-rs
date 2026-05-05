@@ -9,8 +9,8 @@ const MEDIUM_DATA: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing 
 const LARGE_DATA: &[u8] = &[0u8; 1024];
 
 fn setup_hmac() -> HmacSha256Algorithm {
-    let key = HmacSha256Algorithm::generate_key();
-    HmacSha256Algorithm::new(&key)
+    let key = HmacSha256Algorithm::generate_key().unwrap();
+    HmacSha256Algorithm::from_secret_key(&key)
 }
 
 fn setup_es256() -> Es256Algorithm {
