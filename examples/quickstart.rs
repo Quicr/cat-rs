@@ -44,8 +44,8 @@ fn main() -> Result<(), CatError> {
     let moqt_validator = MoqtValidator::new();
     let request = MoqtAuthRequest::new(
         MoqtAction::Publish,
-        vec![b"live.example.com".to_vec()],
-        b"/streams/video".to_vec(),
+        vec![b"live.example.com".to_vec(), b"streaming-123".to_vec()],
+        b"/video".to_vec(),
     );
     let result = moqt_validator.authorize(&decoded, &request);
 

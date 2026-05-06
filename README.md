@@ -73,8 +73,8 @@ let token = CatTokenBuilder::new()
 let validator = MoqtValidator::new();
 let request = MoqtAuthRequest::new(
     MoqtAction::Publish,
-    vec![b"cdn.example.com".to_vec()],
-    b"/live/stream1".to_vec(),
+    vec![b"cdn.example.com".to_vec(), b"live-stream-42".to_vec()],
+    b"/video".to_vec(),
 );
 
 let result = validator.authorize(&token, &request);
