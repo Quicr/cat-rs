@@ -29,16 +29,6 @@ impl MoqtAuthRequest {
         self.dpop_proof = Some(proof);
         self
     }
-
-    /// Create request for simple flat namespace (single element)
-    pub fn simple(action: MoqtAction, namespace: &[u8], track: &[u8]) -> Self {
-        Self {
-            action,
-            namespace: vec![namespace.to_vec()],
-            track: track.to_vec(),
-            dpop_proof: None,
-        }
-    }
 }
 
 /// Result of MOQT authorization check
@@ -419,8 +409,11 @@ mod tests {
 
     #[test]
     fn test_moqt_auth_request() {
-        let request =
-            MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/video");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"example.com".to_vec()],
+            b"/stream/video".to_vec(),
+        );
 
         assert_eq!(request.action, MoqtAction::Publish);
         assert_eq!(request.namespace, vec![b"example.com".to_vec()]);
@@ -443,23 +436,38 @@ mod tests {
         let validator = MoqtValidator::new();
 
         // Should allow
-        let request =
-            MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/video");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"example.com".to_vec()],
+            b"/stream/video".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(result.authorized);
 
         // Should deny (wrong action)
-        let request = MoqtAuthRequest::simple(MoqtAction::Fetch, b"example.com", b"/stream/video");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Fetch,
+            vec![b"example.com".to_vec()],
+            b"/stream/video".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(!result.authorized);
 
         // Should deny (wrong namespace)
-        let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"other.com", b"/stream/video");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"other.com".to_vec()],
+            b"/stream/video".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(!result.authorized);
 
         // Should deny (wrong track)
-        let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/other/video");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"example.com".to_vec()],
+            b"/other/video".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(!result.authorized);
     }
@@ -479,7 +487,11 @@ mod tests {
 
         let validator = MoqtValidator::new();
 
-        let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"example.com".to_vec()],
+            b"/stream".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
 
         assert!(result.authorized);
@@ -569,13 +581,21 @@ mod tests {
         let validator = MoqtValidator::new();
 
         // Publish should match scope 0
-        let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream/1");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Publish,
+            vec![b"example.com".to_vec()],
+            b"/stream/1".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(result.authorized);
         assert_eq!(result.matched_scope_index, Some(0));
 
         // Fetch should match scope 1
-        let request = MoqtAuthRequest::simple(MoqtAction::Fetch, b"example.com", b"/stream/1");
+        let request = MoqtAuthRequest::new(
+            MoqtAction::Fetch,
+            vec![b"example.com".to_vec()],
+            b"/stream/1".to_vec(),
+        );
         let result = validator.authorize(&token, &request);
         assert!(result.authorized);
         assert_eq!(result.matched_scope_index, Some(1));

@@ -152,39 +152,55 @@ fn bench_moqt_authorization(c: &mut Criterion) {
     let validator = MoqtValidator::new();
 
     // Matching request (single scope)
-    let matching_request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/stream/live");
+    let matching_request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"cdn.example.com".to_vec()],
+        b"/stream/live".to_vec(),
+    );
 
     group.bench_function("single_scope_match", |b| {
         b.iter(|| black_box(validator.authorize(&single_scope_token, &matching_request)))
     });
 
     // Non-matching request (must check all scopes)
-    let non_matching_request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"other.com", b"/stream/live");
+    let non_matching_request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"other.com".to_vec()],
+        b"/stream/live".to_vec(),
+    );
 
     group.bench_function("single_scope_no_match", |b| {
         b.iter(|| black_box(validator.authorize(&single_scope_token, &non_matching_request)))
     });
 
     // Multi-scope - first scope matches
-    let first_match_request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-0", b"/track");
+    let first_match_request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"namespace-0".to_vec()],
+        b"/track".to_vec(),
+    );
 
     group.bench_function("multi_scope_first_match", |b| {
         b.iter(|| black_box(validator.authorize(&multi_scope_token, &first_match_request)))
     });
 
     // Multi-scope - last scope matches
-    let last_match_request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-9", b"/track");
+    let last_match_request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"namespace-9".to_vec()],
+        b"/track".to_vec(),
+    );
 
     group.bench_function("multi_scope_last_match", |b| {
         b.iter(|| black_box(validator.authorize(&multi_scope_token, &last_match_request)))
     });
 
     // Multi-scope - no match
-    let no_match_request = MoqtAuthRequest::simple(MoqtAction::Publish, b"namespace-99", b"/track");
+    let no_match_request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"namespace-99".to_vec()],
+        b"/track".to_vec(),
+    );
 
     group.bench_function("multi_scope_no_match", |b| {
         b.iter(|| black_box(validator.authorize(&multi_scope_token, &no_match_request)))
@@ -216,10 +232,10 @@ fn bench_moqt_throughput(c: &mut Criterion) {
             |b, &size| {
                 let requests: Vec<_> = (0..size)
                     .map(|i| {
-                        MoqtAuthRequest::simple(
+                        MoqtAuthRequest::new(
                             MoqtAction::Publish,
-                            b"cdn.example.com",
-                            format!("/stream/{}", i).as_bytes(),
+                            vec![b"cdn.example.com".to_vec()],
+                            format!("/stream/{}", i).into_bytes(),
                         )
                     })
                     .collect();

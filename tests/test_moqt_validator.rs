@@ -29,7 +29,11 @@ fn test_moqt_validator_spec_example_exact_match() {
     let validator = MoqtValidator::new();
 
     // Should permit exact match
-    let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, b"example.com", b"/bob");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::PublishNamespace,
+        vec![b"example.com".to_vec()],
+        b"/bob".to_vec(),
+    );
     assert!(validator.authorize(&token, &request).authorized);
 
     // Should prohibit - various mismatches
@@ -42,7 +46,11 @@ fn test_moqt_validator_spec_example_exact_match() {
     ];
 
     for (ns, track) in test_cases {
-        let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, &ns, &track);
+        let request = MoqtAuthRequest::new(
+            MoqtAction::PublishNamespace,
+            vec![ns.clone()],
+            track.clone(),
+        );
         assert!(
             !validator.authorize(&token, &request).authorized,
             "Should deny ns={:?} track={:?}",
@@ -82,7 +90,11 @@ fn test_moqt_validator_spec_example_prefix_match() {
     ];
 
     for (ns, track) in permit_cases {
-        let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, ns, track);
+        let request = MoqtAuthRequest::new(
+            MoqtAction::PublishNamespace,
+            vec![ns.to_vec()],
+            track.to_vec(),
+        );
         assert!(
             validator.authorize(&token, &request).authorized,
             "Should permit ns={:?} track={:?}",
@@ -96,7 +108,11 @@ fn test_moqt_validator_spec_example_prefix_match() {
         vec![(b"example.com", b"/alice"), (b"other.com", b"/bob")];
 
     for (ns, track) in deny_cases {
-        let request = MoqtAuthRequest::simple(MoqtAction::PublishNamespace, ns, track);
+        let request = MoqtAuthRequest::new(
+            MoqtAction::PublishNamespace,
+            vec![ns.to_vec()],
+            track.to_vec(),
+        );
         assert!(
             !validator.authorize(&token, &request).authorized,
             "Should deny ns={:?} track={:?}",
@@ -122,24 +138,39 @@ fn test_moqt_validator_multiple_scopes() {
     let validator = MoqtValidator::new();
 
     // Publisher can publish to /live/
-    let request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/live/stream1");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"cdn.example.com".to_vec()],
+        b"/live/stream1".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
     assert!(result.authorized);
     assert_eq!(result.matched_scope_index, Some(0));
 
     // Publisher cannot publish to /vod/
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"cdn.example.com", b"/vod/movie1");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"cdn.example.com".to_vec()],
+        b"/vod/movie1".to_vec(),
+    );
     assert!(!validator.authorize(&token, &request).authorized);
 
     // Subscriber can fetch from /vod/
-    let request = MoqtAuthRequest::simple(MoqtAction::Fetch, b"cdn.example.com", b"/vod/movie1");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Fetch,
+        vec![b"cdn.example.com".to_vec()],
+        b"/vod/movie1".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
     assert!(result.authorized);
     assert_eq!(result.matched_scope_index, Some(1));
 
     // Subscriber cannot fetch from /live/
-    let request = MoqtAuthRequest::simple(MoqtAction::Fetch, b"cdn.example.com", b"/live/stream1");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Fetch,
+        vec![b"cdn.example.com".to_vec()],
+        b"/live/stream1".to_vec(),
+    );
     assert!(!validator.authorize(&token, &request).authorized);
 }
 
@@ -158,7 +189,11 @@ fn test_moqt_validator_revalidation_required() {
 
     let validator = MoqtValidator::new();
 
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"example.com".to_vec()],
+        b"/stream".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
 
     assert!(result.authorized);
@@ -182,7 +217,11 @@ fn test_moqt_validator_revalidation_zero() {
 
     let validator = MoqtValidator::new();
 
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"example.com".to_vec()],
+        b"/stream".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
 
     assert!(result.authorized);
@@ -295,7 +334,11 @@ fn test_moqt_default_blocked() {
 
     let validator = MoqtValidator::new();
 
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"example.com".to_vec()],
+        b"/stream".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
 
     assert!(!result.authorized);
@@ -311,7 +354,11 @@ fn test_moqt_empty_scopes() {
 
     let validator = MoqtValidator::new();
 
-    let request = MoqtAuthRequest::simple(MoqtAction::Publish, b"example.com", b"/stream");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"example.com".to_vec()],
+        b"/stream".to_vec(),
+    );
     let result = validator.authorize(&token, &request);
 
     assert!(!result.authorized);
@@ -342,10 +389,10 @@ fn test_moqt_validator_concurrent_access() {
         let handle = thread::spawn(move || {
             for j in 0..100 {
                 let track = format!("/stream/{}/{}", i, j);
-                let request = MoqtAuthRequest::simple(
+                let request = MoqtAuthRequest::new(
                     MoqtAction::Publish,
-                    b"cdn.example.com",
-                    track.as_bytes(),
+                    vec![b"cdn.example.com".to_vec()],
+                    track.as_bytes().to_vec(),
                 );
                 let result = validator.authorize(&token, &request);
                 assert!(

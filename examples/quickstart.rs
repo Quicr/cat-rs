@@ -42,8 +42,11 @@ fn main() -> Result<(), CatError> {
 
     // 6. Authorize MOQT action
     let moqt_validator = MoqtValidator::new();
-    let request =
-        MoqtAuthRequest::simple(MoqtAction::Publish, b"live.example.com", b"/streams/video");
+    let request = MoqtAuthRequest::new(
+        MoqtAction::Publish,
+        vec![b"live".to_vec(), b"example".to_vec(), b"com".to_vec()],
+        b"/streams/video".to_vec(),
+    );
     let result = moqt_validator.authorize(&decoded, &request);
 
     println!("Authorized: {}", result.authorized);
