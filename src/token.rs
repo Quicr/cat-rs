@@ -11,7 +11,10 @@ use std::collections::HashSet;
 pub struct CatTokenValidator {
     expected_issuers: Option<HashSet<String>>,
     expected_audiences: Option<HashSet<String>>,
-    clock_skew_tolerance: i64,
+    /// Clock skew tolerance for expiration (seconds past exp that token is still valid)
+    exp_tolerance: i64,
+    /// Clock skew tolerance for not-before (seconds before nbf that token is valid)
+    nbf_tolerance: i64,
 }
 
 impl Default for CatTokenValidator {
@@ -25,7 +28,8 @@ impl CatTokenValidator {
         Self {
             expected_issuers: None,
             expected_audiences: None,
-            clock_skew_tolerance: 60, // 60 seconds default
+            exp_tolerance: 30, // 30 seconds default (conservative for security)
+            nbf_tolerance: 30, // 30 seconds default (conservative for security)
         }
     }
 
@@ -39,8 +43,20 @@ impl CatTokenValidator {
         self
     }
 
+    /// Set symmetric clock skew tolerance for both exp and nbf
     pub fn with_clock_skew_tolerance(mut self, tolerance_seconds: i64) -> Self {
-        self.clock_skew_tolerance = tolerance_seconds;
+        self.exp_tolerance = tolerance_seconds;
+        self.nbf_tolerance = tolerance_seconds;
+        self
+    }
+
+    /// Set separate tolerances for expiration and not-before checks.
+    ///
+    /// - `exp_tolerance`: seconds past expiration that token is still accepted
+    /// - `nbf_tolerance`: seconds before not-before that token is accepted
+    pub fn with_separate_tolerances(mut self, exp_tolerance: i64, nbf_tolerance: i64) -> Self {
+        self.exp_tolerance = exp_tolerance;
+        self.nbf_tolerance = nbf_tolerance;
         self
     }
 
@@ -48,13 +64,13 @@ impl CatTokenValidator {
         let now = Utc::now().timestamp();
 
         if let Some(exp) = token.core.exp
-            && now > exp + self.clock_skew_tolerance
+            && now > exp + self.exp_tolerance
         {
             return Err(CatError::TokenExpired);
         }
 
         if let Some(nbf) = token.core.nbf
-            && now < nbf - self.clock_skew_tolerance
+            && now < nbf - self.nbf_tolerance
         {
             return Err(CatError::TokenNotYetValid);
         }
@@ -95,12 +111,38 @@ impl CatTokenValidator {
             ));
         }
 
-        if let Some(ref geohash) = token.cat.geohash
-            && (geohash.is_empty() || geohash.len() > 12)
-        {
-            return Err(CatError::GeographicValidationFailed(
-                "Invalid geohash".to_string(),
-            ));
+        if let Some(ref geohash) = token.cat.geohash {
+            // Minimum length of 4 provides ~40km precision
+            // Maximum length of 12 is the practical limit for geohash precision
+            const MIN_GEOHASH_LENGTH: usize = 4;
+            const MAX_GEOHASH_LENGTH: usize = 12;
+
+            if geohash.len() < MIN_GEOHASH_LENGTH || geohash.len() > MAX_GEOHASH_LENGTH {
+                return Err(CatError::GeographicValidationFailed(format!(
+                    "Invalid geohash length: {} (must be {}-{} characters for meaningful precision)",
+                    geohash.len(),
+                    MIN_GEOHASH_LENGTH,
+                    MAX_GEOHASH_LENGTH
+                )));
+            }
+            // Validate geohash character set (base32: 0-9, b-h, j-n, p, q-z)
+            // Excludes: a, i, l, o
+            const VALID_GEOHASH_CHARS: &str = "0123456789bcdefghjkmnpqrstuvwxyz";
+            for c in geohash.chars() {
+                if !VALID_GEOHASH_CHARS.contains(c) {
+                    return Err(CatError::GeographicValidationFailed(format!(
+                        "Invalid geohash character: '{}'",
+                        c
+                    )));
+                }
+            }
+        }
+
+        // Validate network identifiers if present
+        if let Some(ref nips) = token.cat.catnip {
+            for nip in nips {
+                nip.validate()?;
+            }
         }
 
         Ok(())
@@ -115,8 +157,8 @@ impl CatTokenValidator {
             // Check nesting depth limit (spec requires minimum support of 4 levels)
             const MAX_NESTING_DEPTH: usize = 10; // Conservative limit to prevent stack overflow
 
-            let depth = token.composite.get_max_depth();
-            if depth > MAX_NESTING_DEPTH {
+            // Use bounded depth check to prevent stack overflow before validation
+            if token.composite.exceeds_depth_limit(MAX_NESTING_DEPTH) {
                 return Err(CatError::InvalidClaimValue(
                     "Composite claim nesting depth exceeds maximum".to_string(),
                 ));
@@ -383,6 +425,15 @@ pub fn decode_token(
         .decode(parts[2])
         .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
 
+    // Verify algorithm in header matches expected algorithm
+    let header_alg = extract_algorithm_from_header(&header_cbor)?;
+    if header_alg != algorithm.algorithm_id() {
+        return Err(CatError::AlgorithmMismatch {
+            expected: algorithm.algorithm_id(),
+            found: header_alg,
+        });
+    }
+
     let signing_input = crate::crypto::create_signing_input(&header_cbor, &payload_cbor);
 
     if !algorithm.verify(&signing_input, &signature)? {
@@ -390,4 +441,28 @@ pub fn decode_token(
     }
 
     Cwt::decode_payload(&payload_cbor)
+}
+
+fn extract_algorithm_from_header(header_cbor: &[u8]) -> Result<i64, CatError> {
+    let value: ciborium::Value = ciborium::de::from_reader(header_cbor)
+        .map_err(|e| CatError::InvalidCbor(e.to_string()))?;
+
+    let map = match value {
+        ciborium::Value::Map(m) => m,
+        _ => return Err(CatError::InvalidTokenFormat),
+    };
+
+    for (key, val) in map {
+        if let ciborium::Value::Integer(k) = key {
+            let k_i64: i64 = k.try_into().map_err(|_| CatError::InvalidTokenFormat)?;
+            if k_i64 == 1 {
+                // alg claim key
+                if let ciborium::Value::Integer(alg) = val {
+                    return alg.try_into().map_err(|_| CatError::InvalidTokenFormat);
+                }
+            }
+        }
+    }
+
+    Err(CatError::MissingRequiredClaim("alg".to_string()))
 }

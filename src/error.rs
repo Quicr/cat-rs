@@ -38,6 +38,9 @@ pub enum CatError {
     #[error("Unsupported algorithm: {0}")]
     UnsupportedAlgorithm(String),
 
+    #[error("Algorithm mismatch: expected {expected}, found {found}")]
+    AlgorithmMismatch { expected: i64, found: i64 },
+
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
 

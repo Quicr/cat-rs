@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 use crate::{
-    BinaryMatch, CatDpopSettings, CatError, CatToken, DpopProof, DpopValidator, MoqtAction,
-    MoqtScope, NamespaceMatch, confirmation_matches_jwk,
+    BinaryMatch, CatDpopSettings, CatError, CatToken, CryptographicAlgorithm, DpopProof,
+    DpopValidator, MoqtAction, MoqtScope, NamespaceMatch, confirmation_matches_jwk,
 };
 
 /// MOQT authorization request
@@ -185,11 +185,14 @@ impl MoqtValidator {
         MoqtAuthResult::denied()
     }
 
-    /// Authorize with DPoP proof validation
+    /// Authorize with full DPoP proof validation including signature verification.
+    ///
+    /// This method validates both the claims and the cryptographic signature of the DPoP proof.
     pub fn authorize_with_dpop(
         &self,
         token: &CatToken,
         request: &MoqtAuthRequest,
+        algorithm: &dyn CryptographicAlgorithm,
     ) -> Result<MoqtAuthResult, CatError> {
         // First check basic authorization
         let auth_result = self.authorize(token, request);
@@ -197,7 +200,7 @@ impl MoqtValidator {
             return Ok(auth_result);
         }
 
-        // If token has DPoP binding, validate the proof
+        // If token has DPoP binding, validate the proof with full signature verification
         if let Some(ref cnf) = token.dpop.cnf {
             let proof = request.dpop_proof.as_ref().ok_or_else(|| {
                 CatError::DpopValidationFailed(
@@ -215,8 +218,8 @@ impl MoqtValidator {
                 return Err(CatError::InvalidDpopBinding);
             }
 
-            // Validate the proof
-            validator.validate(proof, request.action, &cnf.jkt)?;
+            // Validate the proof with full signature verification
+            validator.validate_with_algorithm(proof, request.action, &cnf.jkt, algorithm)?;
         }
 
         Ok(auth_result)

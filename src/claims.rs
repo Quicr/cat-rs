@@ -91,9 +91,21 @@ pub struct InformationalClaims {
     pub catifdata: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Confirmation claim for DPoP key binding.
+///
+/// The `jkt` field contains a JWK Thumbprint (SHA-256 hash of the public key).
+/// This is not sensitive data - it's derived from the public key and is safe to clone.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConfirmationClaim {
     pub jkt: Vec<u8>,
+}
+
+impl std::fmt::Debug for ConfirmationClaim {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConfirmationClaim")
+            .field("jkt", &format!("[REDACTED {} bytes]", self.jkt.len()))
+            .finish()
+    }
 }
 
 impl ConfirmationClaim {
@@ -198,53 +210,104 @@ impl CompositeClaim {
         self.claims.push(claim_set);
     }
 
-    /// Get the maximum nesting depth of this composite claim
+    /// Get the maximum nesting depth of this composite claim.
+    /// Returns an error if depth exceeds the limit to prevent stack overflow.
     pub fn get_depth(&self) -> usize {
+        self.get_depth_bounded(0, 100).unwrap_or(100)
+    }
+
+    /// Get depth with bounds checking to prevent stack overflow
+    fn get_depth_bounded(
+        &self,
+        current_depth: usize,
+        max_allowed: usize,
+    ) -> Result<usize, crate::CatError> {
+        if current_depth > max_allowed {
+            return Err(crate::CatError::InvalidClaimValue(
+                "Composite claim nesting depth exceeds maximum".to_string(),
+            ));
+        }
+
         let mut max_depth = 1;
         for claim_set in &self.claims {
             if let ClaimSet::Composite(composite) = claim_set {
-                let child_depth = composite.get_depth();
+                let child_depth = composite.get_depth_bounded(current_depth + 1, max_allowed)?;
                 max_depth = max_depth.max(child_depth + 1);
             }
         }
-        max_depth
+        Ok(max_depth)
     }
+
+    /// Check if depth exceeds limit without full traversal
+    pub fn exceeds_depth_limit(&self, limit: usize) -> bool {
+        self.check_depth_limit(0, limit)
+    }
+
+    fn check_depth_limit(&self, current: usize, limit: usize) -> bool {
+        if current >= limit {
+            return true;
+        }
+        for claim_set in &self.claims {
+            if let ClaimSet::Composite(composite) = claim_set {
+                if composite.check_depth_limit(current + 1, limit) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Maximum depth for evaluate() to prevent stack overflow
+    const MAX_EVALUATE_DEPTH: usize = 100;
 
     /// Evaluate this composite claim against a validation context
     pub fn evaluate<V>(&self, validator: &V) -> bool
     where
         V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
     {
+        self.evaluate_with_depth(validator, 0)
+    }
+
+    /// Evaluate with depth tracking to prevent stack overflow
+    fn evaluate_with_depth<V>(&self, validator: &V, depth: usize) -> bool
+    where
+        V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
+    {
+        // Depth limit check to prevent stack overflow
+        if depth > Self::MAX_EVALUATE_DEPTH {
+            return false;
+        }
+
         match self.op {
             CompositeOperator::Or => {
                 // At least one claim set must be acceptable
                 self.claims
                     .iter()
-                    .any(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                    .any(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
             }
             CompositeOperator::Nor => {
                 // No claim sets can be acceptable
                 !self
                     .claims
                     .iter()
-                    .any(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                    .any(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
             }
             CompositeOperator::And => {
                 // All claim sets must be acceptable
                 self.claims
                     .iter()
-                    .all(|claim_set| self.evaluate_claim_set(claim_set, validator))
+                    .all(|claim_set| self.evaluate_claim_set_with_depth(claim_set, validator, depth))
             }
         }
     }
 
-    fn evaluate_claim_set<V>(&self, claim_set: &ClaimSet, validator: &V) -> bool
+    fn evaluate_claim_set_with_depth<V>(&self, claim_set: &ClaimSet, validator: &V, depth: usize) -> bool
     where
         V: Fn(&CatToken) -> Result<(), Box<dyn std::error::Error>>,
     {
         match claim_set {
             ClaimSet::Token(token) => validator(token.as_ref()).is_ok(),
-            ClaimSet::Composite(composite) => composite.evaluate(validator),
+            ClaimSet::Composite(composite) => composite.evaluate_with_depth(validator, depth + 1),
         }
     }
 }
@@ -308,6 +371,26 @@ impl CompositeClaims {
 
         max_depth
     }
+
+    /// Check if any composite claim exceeds the depth limit
+    pub fn exceeds_depth_limit(&self, limit: usize) -> bool {
+        if let Some(ref claim) = self.or_claim {
+            if claim.exceeds_depth_limit(limit) {
+                return true;
+            }
+        }
+        if let Some(ref claim) = self.nor_claim {
+            if claim.exceeds_depth_limit(limit) {
+                return true;
+            }
+        }
+        if let Some(ref claim) = self.and_claim {
+            if claim.exceeds_depth_limit(limit) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -332,6 +415,76 @@ pub enum NetworkIdentifier {
     IpRange(String),
     Asn(u32),
     AsnRange(u32, u32),
+}
+
+impl NetworkIdentifier {
+    /// Validate that the network identifier contains valid data
+    pub fn validate(&self) -> Result<(), crate::CatError> {
+        match self {
+            NetworkIdentifier::IpAddress(ip) => {
+                // Validate IPv4 or IPv6 address
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "Invalid IP address: {}",
+                        ip
+                    )));
+                }
+            }
+            NetworkIdentifier::IpRange(range) => {
+                // Validate CIDR notation (e.g., "192.168.1.0/24" or "2001:db8::/32")
+                let parts: Vec<&str> = range.split('/').collect();
+                if parts.len() != 2 {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "Invalid IP range format (expected CIDR): {}",
+                        range
+                    )));
+                }
+                if parts[0].parse::<std::net::IpAddr>().is_err() {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "Invalid IP address in range: {}",
+                        parts[0]
+                    )));
+                }
+                let prefix_len: u8 = parts[1].parse().map_err(|_| {
+                    crate::CatError::InvalidClaimValue(format!(
+                        "Invalid prefix length in range: {}",
+                        parts[1]
+                    ))
+                })?;
+                // Validate prefix length based on IP version
+                let max_prefix = if parts[0].contains(':') { 128 } else { 32 };
+                if prefix_len > max_prefix {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "Prefix length {} exceeds maximum {} for IP version",
+                        prefix_len, max_prefix
+                    )));
+                }
+            }
+            NetworkIdentifier::Asn(_) => {
+                // ASN is a u32, so already valid by type
+            }
+            NetworkIdentifier::AsnRange(start, end) => {
+                if start > end {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "Invalid ASN range: start ({}) > end ({})",
+                        start, end
+                    )));
+                }
+                // Warn about overly broad ASN ranges
+                // Maximum reasonable range is 65536 (one /16 worth of ASNs)
+                const MAX_REASONABLE_ASN_RANGE: u32 = 65536;
+                let range_size = end.saturating_sub(*start);
+                if range_size > MAX_REASONABLE_ASN_RANGE {
+                    return Err(crate::CatError::InvalidClaimValue(format!(
+                        "ASN range too broad: {} ASNs (max {} for meaningful network restriction)",
+                        range_size,
+                        MAX_REASONABLE_ASN_RANGE
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "moqt")]
@@ -378,19 +531,24 @@ impl MoqtAction {
 }
 
 #[cfg(feature = "moqt")]
-impl From<i32> for MoqtAction {
-    fn from(value: i32) -> Self {
+impl TryFrom<i32> for MoqtAction {
+    type Error = crate::CatError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
-            0 => MoqtAction::ClientSetup,
-            1 => MoqtAction::ServerSetup,
-            2 => MoqtAction::PublishNamespace,
-            3 => MoqtAction::SubscribeNamespace,
-            4 => MoqtAction::Subscribe,
-            5 => MoqtAction::RequestUpdate,
-            6 => MoqtAction::Publish,
-            7 => MoqtAction::Fetch,
-            8 => MoqtAction::TrackStatus,
-            _ => MoqtAction::ClientSetup, // Default fallback
+            0 => Ok(MoqtAction::ClientSetup),
+            1 => Ok(MoqtAction::ServerSetup),
+            2 => Ok(MoqtAction::PublishNamespace),
+            3 => Ok(MoqtAction::SubscribeNamespace),
+            4 => Ok(MoqtAction::Subscribe),
+            5 => Ok(MoqtAction::RequestUpdate),
+            6 => Ok(MoqtAction::Publish),
+            7 => Ok(MoqtAction::Fetch),
+            8 => Ok(MoqtAction::TrackStatus),
+            _ => Err(crate::CatError::InvalidClaimValue(format!(
+                "Invalid MOQT action: {}",
+                value
+            ))),
         }
     }
 }

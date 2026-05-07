@@ -39,13 +39,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn generate_hmac_example() -> Result<(), Box<dyn std::error::Error>> {
-    let key = HmacSha256Algorithm::generate_key();
-    let algorithm = HmacSha256Algorithm::new(&key);
+    let key = HmacSha256Algorithm::generate_key()?;
+    let algorithm = HmacSha256Algorithm::from_secret_key(&key);
 
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
 
-    println!("HMAC256 Key (hex): {:x?}", key);
+    // Security: Do not print key material in production
+    // To display the key, use: --show-key flag (not implemented in this example)
+    println!(
+        "HMAC256 Key: [REDACTED - {} bytes generated]",
+        key.as_bytes().len()
+    );
     println!("Sample CAT Token: {}", encoded);
 
     let decoded = decode_token(&encoded, &algorithm)?;
@@ -63,7 +68,12 @@ fn generate_es256_example() -> Result<(), Box<dyn std::error::Error>> {
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
 
-    println!("ES256 Public Key: {:?}", algorithm.verifying_key());
+    // Output public key as JWK for structured, portable format
+    let jwk = cat_impl::Jwk::from_es256_verifying_key(algorithm.verifying_key())?;
+    println!(
+        "ES256 Public Key (JWK): {}",
+        serde_json::to_string(&jwk).unwrap_or_else(|_| "Error serializing JWK".to_string())
+    );
     println!("Sample CAT Token: {}", encoded);
 
     let decoded = decode_token(&encoded, &algorithm)?;
@@ -81,7 +91,12 @@ fn generate_ps256_example() -> Result<(), Box<dyn std::error::Error>> {
     let token = create_sample_token();
     let encoded = encode_token(&token, &algorithm)?;
 
-    println!("PS256 Public Key: {:?}", algorithm.public_key());
+    // Output public key as JWK for structured, portable format
+    let jwk = cat_impl::Jwk::from_rsa_public_key(algorithm.public_key());
+    println!(
+        "PS256 Public Key (JWK): {}",
+        serde_json::to_string(&jwk).unwrap_or_else(|_| "Error serializing JWK".to_string())
+    );
     println!("Sample CAT Token: {}", encoded);
 
     let decoded = decode_token(&encoded, &algorithm)?;

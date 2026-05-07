@@ -162,7 +162,7 @@ fn main() {
 
     // Simulate admin's key pair
     let admin_key = Es256Algorithm::new_with_key_pair().unwrap();
-    let admin_jwk = Jwk::from_es256_verifying_key(admin_key.verifying_key());
+    let admin_jwk = Jwk::from_es256_verifying_key(admin_key.verifying_key()).unwrap();
 
     let admin_token = issue_admin_token(&algorithm, "admin@example.com", &admin_jwk)
         .expect("Failed to issue admin token");

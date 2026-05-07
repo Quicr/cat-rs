@@ -10,14 +10,43 @@ use ring::rand::SecureRandom;
 use ring::{digest, rand};
 use rsa::pkcs1v15::{SigningKey as RsaSigningKey, VerifyingKey as RsaVerifyingKey};
 use rsa::signature::{RandomizedSigner, SignatureEncoding, Signer, Verifier};
+use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub const ALG_HMAC256_256: i64 = -4;
 pub const ALG_ES256: i64 = -7;
 pub const ALG_PS256: i64 = -37;
 
+/// Convert COSE algorithm ID to JOSE algorithm string.
+///
+/// This helps bridge between CWT (COSE) and DPoP (JOSE) representations.
+pub fn cose_to_jose_algorithm(cose_alg: i64) -> Option<&'static str> {
+    match cose_alg {
+        ALG_HMAC256_256 => Some("HS256"),
+        ALG_ES256 => Some("ES256"),
+        ALG_PS256 => Some("PS256"),
+        _ => None,
+    }
+}
+
+/// Convert JOSE algorithm string to COSE algorithm ID.
+///
+/// This helps bridge between DPoP (JOSE) and CWT (COSE) representations.
+pub fn jose_to_cose_algorithm(jose_alg: &str) -> Option<i64> {
+    match jose_alg {
+        "HS256" => Some(ALG_HMAC256_256),
+        "ES256" => Some(ALG_ES256),
+        "PS256" => Some(ALG_PS256),
+        _ => None,
+    }
+}
+
 type HmacSha256 = Hmac<Sha256>;
+
+/// Minimum RSA key size in bytes (2048 bits = 256 bytes)
+pub const MIN_RSA_KEY_SIZE: usize = 256;
 
 pub trait CryptographicAlgorithm {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, CatError>;
@@ -25,6 +54,25 @@ pub trait CryptographicAlgorithm {
     fn algorithm_id(&self) -> i64;
 }
 
+/// A secret key wrapper that auto-zeroizes on drop
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+pub struct SecretKey(Vec<u8>);
+
+impl SecretKey {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SecretKey")
+            .field(&format!("[{} bytes]", self.0.len()))
+            .finish()
+    }
+}
+
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HmacSha256Algorithm {
     key: Vec<u8>,
 }
@@ -34,11 +82,20 @@ impl HmacSha256Algorithm {
         Self { key: key.to_vec() }
     }
 
-    pub fn generate_key() -> Vec<u8> {
+    /// Create from a SecretKey (preferred - auto-zeroizes on drop)
+    pub fn from_secret_key(key: &SecretKey) -> Self {
+        Self {
+            key: key.0.clone(),
+        }
+    }
+
+    /// Generate a new random key with auto-zeroize on drop
+    pub fn generate_key() -> Result<SecretKey, CatError> {
         let rng = rand::SystemRandom::new();
         let mut key = vec![0u8; 32];
-        rng.fill(&mut key).unwrap();
-        key
+        rng.fill(&mut key)
+            .map_err(|_| CatError::CryptoError("Failed to generate random key".to_string()))?;
+        Ok(SecretKey(key))
     }
 }
 
@@ -68,6 +125,14 @@ impl CryptographicAlgorithm for HmacSha256Algorithm {
 pub struct Es256Algorithm {
     signing_key: Option<SigningKey>,
     verifying_key: VerifyingKey,
+}
+
+impl Drop for Es256Algorithm {
+    fn drop(&mut self) {
+        // SigningKey from p256 crate implements Zeroize internally,
+        // but we explicitly drop it here to ensure cleanup
+        self.signing_key.take();
+    }
 }
 
 impl Es256Algorithm {
@@ -120,8 +185,16 @@ impl CryptographicAlgorithm for Es256Algorithm {
 }
 
 pub struct Ps256Algorithm {
-    private_key: Option<RsaPrivateKey>,
+    signing_key: Option<RsaSigningKey<Sha256>>,
     public_key: RsaPublicKey,
+}
+
+impl Drop for Ps256Algorithm {
+    fn drop(&mut self) {
+        // RsaSigningKey internally holds the private key
+        // Clear by taking and dropping
+        self.signing_key.take();
+    }
 }
 
 impl Ps256Algorithm {
@@ -130,18 +203,27 @@ impl Ps256Algorithm {
         let private_key = RsaPrivateKey::new(&mut OsRng, bits)
             .map_err(|e| CatError::CryptoError(e.to_string()))?;
         let public_key = RsaPublicKey::from(&private_key);
+        let signing_key = RsaSigningKey::<Sha256>::new(private_key);
 
         Ok(Self {
-            private_key: Some(private_key),
+            signing_key: Some(signing_key),
             public_key,
         })
     }
 
-    pub fn new_verifier(public_key: RsaPublicKey) -> Self {
-        Self {
-            private_key: None,
-            public_key,
+    pub fn new_verifier(public_key: RsaPublicKey) -> Result<Self, CatError> {
+        // Validate minimum RSA key size (2048 bits = 256 bytes)
+        if public_key.size() < MIN_RSA_KEY_SIZE {
+            return Err(CatError::CryptoError(format!(
+                "RSA key too small: {} bytes (minimum {} bytes / 2048 bits required)",
+                public_key.size(),
+                MIN_RSA_KEY_SIZE
+            )));
         }
+        Ok(Self {
+            signing_key: None,
+            public_key,
+        })
     }
 
     pub fn public_key(&self) -> &RsaPublicKey {
@@ -151,12 +233,11 @@ impl Ps256Algorithm {
 
 impl CryptographicAlgorithm for Ps256Algorithm {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, CatError> {
-        let private_key = self
-            .private_key
+        let signing_key = self
+            .signing_key
             .as_ref()
-            .ok_or_else(|| CatError::CryptoError("No private key available".to_string()))?;
+            .ok_or_else(|| CatError::CryptoError("No signing key available".to_string()))?;
 
-        let signing_key = RsaSigningKey::<Sha256>::new(private_key.clone());
         let signature = signing_key.sign_with_rng(&mut OsRng, data);
 
         Ok(signature.to_bytes().to_vec())
@@ -188,7 +269,12 @@ pub fn hash_sha256(data: &[u8]) -> Vec<u8> {
     digest::digest(&digest::SHA256, data).as_ref().to_vec()
 }
 
-/// Constant-time comparison to prevent timing attacks
+/// Constant-time comparison to prevent timing attacks.
+///
+/// Note: The length comparison returns early if lengths differ. This is safe for
+/// comparing fixed-length values like cryptographic hashes (SHA-256) and JWK
+/// thumbprints where the length is not secret. Do not use this function for
+/// comparing variable-length secrets where the length itself is sensitive.
 #[inline]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {

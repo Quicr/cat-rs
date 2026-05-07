@@ -371,8 +371,8 @@ fn test_dpop_validator_concurrent_jti() {
         .with_jti_processing(true);
     let validator = Arc::new(DpopValidator::new(settings));
 
-    let alg = Es256Algorithm::new_with_key_pair().unwrap();
-    let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
+    let alg = Arc::new(Es256Algorithm::new_with_key_pair().unwrap());
+    let jwk = Jwk::from_es256_verifying_key(alg.verifying_key()).unwrap();
     let thumbprint = Arc::new(jwk.thumbprint().unwrap());
 
     let mut handles = vec![];
@@ -381,6 +381,7 @@ fn test_dpop_validator_concurrent_jti() {
         let validator = Arc::clone(&validator);
         let thumbprint = Arc::clone(&thumbprint);
         let jwk_clone = jwk.clone();
+        let alg_clone = Arc::clone(&alg);
 
         let handle = thread::spawn(move || {
             for j in 0..50 {
@@ -393,13 +394,23 @@ fn test_dpop_validator_concurrent_jti() {
                     jwk_clone.clone(),
                 )
                 .with_jti(jti.clone());
-                proof.signature = vec![1, 2, 3]; // Dummy signature for test
+                proof.sign(alg_clone.as_ref()).unwrap();
 
-                let result = validator.validate(&proof, MoqtAction::Publish, &thumbprint);
+                let result = validator.validate_with_algorithm(
+                    &proof,
+                    MoqtAction::Publish,
+                    &thumbprint,
+                    alg_clone.as_ref(),
+                );
                 assert!(result.is_ok(), "First use of JTI {} should succeed", jti);
 
                 // Second use should fail (replay)
-                let result = validator.validate(&proof, MoqtAction::Publish, &thumbprint);
+                let result = validator.validate_with_algorithm(
+                    &proof,
+                    MoqtAction::Publish,
+                    &thumbprint,
+                    alg_clone.as_ref(),
+                );
                 assert!(
                     matches!(result, Err(CatError::ReplayAttackDetected)),
                     "Replay of JTI {} should fail",
@@ -414,4 +425,40 @@ fn test_dpop_validator_concurrent_jti() {
     for handle in handles {
         handle.join().expect("Thread panicked");
     }
+}
+
+#[test]
+fn test_jti_cache_stats() {
+    let settings = CatDpopSettings::new()
+        .with_window(300)
+        .with_jti_processing(true);
+
+    // Use smaller cache size for testing
+    let validator = DpopValidator::with_cache_size(settings, 1000);
+    let alg = Es256Algorithm::new_with_key_pair().unwrap();
+    let jwk = Jwk::from_es256_verifying_key(alg.verifying_key()).unwrap();
+    let thumbprint = jwk.thumbprint().unwrap();
+
+    // Insert 1000 unique JTIs (fills the cache)
+    for i in 0..1000 {
+        let jti = format!("jti-stats-{}", i);
+        let mut proof = DpopProof::create_for_moqt(
+            MoqtAction::Publish,
+            b"namespace",
+            b"track",
+            "ES256",
+            jwk.clone(),
+        )
+        .with_jti(jti);
+        proof.sign(&alg).unwrap();
+
+        let result = validator.validate_with_algorithm(&proof, MoqtAction::Publish, &thumbprint, &alg);
+        assert!(result.is_ok(), "Validation should succeed for unique JTI");
+    }
+
+    // Check cache stats
+    let stats = validator.jti_cache_stats();
+    assert_eq!(stats.size, 1000);
+    assert_eq!(stats.capacity, 1000);
+    assert!(stats.under_pressure, "Cache should be at capacity (90%+)");
 }

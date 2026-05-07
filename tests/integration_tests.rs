@@ -46,8 +46,8 @@ fn test_cat_token_creation() {
 
 #[test]
 fn test_hmac_token_encoding_decoding() {
-    let key = HmacSha256Algorithm::generate_key();
-    let algorithm = HmacSha256Algorithm::new(&key);
+    let key = HmacSha256Algorithm::generate_key().unwrap();
+    let algorithm = HmacSha256Algorithm::from_secret_key(&key);
 
     let now = Utc::now();
     let exp = now + Duration::hours(1);
@@ -361,10 +361,10 @@ fn test_all_cat_claims() {
 
 #[test]
 fn test_invalid_signature_verification() {
-    let key1 = HmacSha256Algorithm::generate_key();
-    let key2 = HmacSha256Algorithm::generate_key();
-    let algorithm1 = HmacSha256Algorithm::new(&key1);
-    let algorithm2 = HmacSha256Algorithm::new(&key2);
+    let key1 = HmacSha256Algorithm::generate_key().unwrap();
+    let key2 = HmacSha256Algorithm::generate_key().unwrap();
+    let algorithm1 = HmacSha256Algorithm::from_secret_key(&key1);
+    let algorithm2 = HmacSha256Algorithm::from_secret_key(&key2);
 
     let token = CatTokenBuilder::new()
         .issuer("https://test.com")
@@ -380,8 +380,8 @@ fn test_invalid_signature_verification() {
 
 #[test]
 fn test_invalid_token_format() {
-    let key = HmacSha256Algorithm::generate_key();
-    let algorithm = HmacSha256Algorithm::new(&key);
+    let key = HmacSha256Algorithm::generate_key().unwrap();
+    let algorithm = HmacSha256Algorithm::from_secret_key(&key);
 
     // Test with wrong number of parts
     let result = decode_token("invalid", &algorithm);
@@ -523,8 +523,8 @@ fn test_moqt_binary_match() {
 fn test_moqt_token_encoding_decoding() {
     use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
-    let key = HmacSha256Algorithm::generate_key();
-    let algorithm = HmacSha256Algorithm::new(&key);
+    let key = HmacSha256Algorithm::generate_key().unwrap();
+    let algorithm = HmacSha256Algorithm::from_secret_key(&key);
 
     let scope1 = MoqtScope::new()
         .with_actions(vec![MoqtAction::PublishNamespace, MoqtAction::Publish])
@@ -636,19 +636,20 @@ fn test_moqt_multiple_scopes_authorization() {
 fn test_moqt_action_conversion() {
     use cat_impl::claims::MoqtAction;
 
-    // Test From<i32> conversion
-    assert_eq!(MoqtAction::from(0), MoqtAction::ClientSetup);
-    assert_eq!(MoqtAction::from(1), MoqtAction::ServerSetup);
-    assert_eq!(MoqtAction::from(2), MoqtAction::PublishNamespace);
-    assert_eq!(MoqtAction::from(3), MoqtAction::SubscribeNamespace);
-    assert_eq!(MoqtAction::from(4), MoqtAction::Subscribe);
-    assert_eq!(MoqtAction::from(5), MoqtAction::RequestUpdate);
-    assert_eq!(MoqtAction::from(6), MoqtAction::Publish);
-    assert_eq!(MoqtAction::from(7), MoqtAction::Fetch);
-    assert_eq!(MoqtAction::from(8), MoqtAction::TrackStatus);
+    // Test TryFrom<i32> conversion
+    assert_eq!(MoqtAction::try_from(0).unwrap(), MoqtAction::ClientSetup);
+    assert_eq!(MoqtAction::try_from(1).unwrap(), MoqtAction::ServerSetup);
+    assert_eq!(MoqtAction::try_from(2).unwrap(), MoqtAction::PublishNamespace);
+    assert_eq!(MoqtAction::try_from(3).unwrap(), MoqtAction::SubscribeNamespace);
+    assert_eq!(MoqtAction::try_from(4).unwrap(), MoqtAction::Subscribe);
+    assert_eq!(MoqtAction::try_from(5).unwrap(), MoqtAction::RequestUpdate);
+    assert_eq!(MoqtAction::try_from(6).unwrap(), MoqtAction::Publish);
+    assert_eq!(MoqtAction::try_from(7).unwrap(), MoqtAction::Fetch);
+    assert_eq!(MoqtAction::try_from(8).unwrap(), MoqtAction::TrackStatus);
 
-    // Test unknown action defaults to ClientSetup
-    assert_eq!(MoqtAction::from(99), MoqtAction::ClientSetup);
+    // Test unknown action returns error (not silent fallback)
+    assert!(MoqtAction::try_from(99).is_err());
+    assert!(MoqtAction::try_from(-1).is_err());
 }
 
 #[test]

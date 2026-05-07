@@ -355,8 +355,124 @@ fn decode_namespace_match(value: &Value) -> Result<crate::claims::NamespaceMatch
     }
 }
 
+/// Default maximum CBOR payload size (1MB)
+pub const DEFAULT_MAX_CBOR_PAYLOAD_SIZE: usize = 1024 * 1024;
+
+/// Default maximum number of MOQT scopes allowed in a token
+pub const DEFAULT_MAX_MOQT_SCOPES: usize = 1000;
+
+/// Default maximum number of custom claims allowed in a token
+pub const DEFAULT_MAX_CUSTOM_CLAIMS: usize = 100;
+
+/// Default maximum length for individual string claims (8KB)
+pub const DEFAULT_MAX_STRING_CLAIM_LENGTH: usize = 8 * 1024;
+
+/// Default maximum number of namespace matches per scope
+pub const DEFAULT_MAX_NAMESPACE_MATCHES_PER_SCOPE: usize = 100;
+
+/// Default maximum number of URI patterns allowed
+pub const DEFAULT_MAX_URI_PATTERNS: usize = 1000;
+
+/// Configuration for CWT validation limits.
+///
+/// All limits have sensible defaults but can be customized for specific use cases.
+#[derive(Debug, Clone)]
+pub struct CwtLimits {
+    /// Maximum CBOR payload size in bytes
+    pub max_cbor_payload_size: usize,
+    /// Maximum number of MOQT scopes per token
+    pub max_moqt_scopes: usize,
+    /// Maximum number of custom claims per token
+    pub max_custom_claims: usize,
+    /// Maximum length for string claims in bytes
+    pub max_string_claim_length: usize,
+    /// Maximum namespace matches per scope
+    pub max_namespace_matches_per_scope: usize,
+    /// Maximum URI patterns
+    pub max_uri_patterns: usize,
+}
+
+impl Default for CwtLimits {
+    fn default() -> Self {
+        Self {
+            max_cbor_payload_size: DEFAULT_MAX_CBOR_PAYLOAD_SIZE,
+            max_moqt_scopes: DEFAULT_MAX_MOQT_SCOPES,
+            max_custom_claims: DEFAULT_MAX_CUSTOM_CLAIMS,
+            max_string_claim_length: DEFAULT_MAX_STRING_CLAIM_LENGTH,
+            max_namespace_matches_per_scope: DEFAULT_MAX_NAMESPACE_MATCHES_PER_SCOPE,
+            max_uri_patterns: DEFAULT_MAX_URI_PATTERNS,
+        }
+    }
+}
+
+impl CwtLimits {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_max_cbor_payload_size(mut self, size: usize) -> Self {
+        self.max_cbor_payload_size = size;
+        self
+    }
+
+    pub fn with_max_moqt_scopes(mut self, count: usize) -> Self {
+        self.max_moqt_scopes = count;
+        self
+    }
+
+    pub fn with_max_custom_claims(mut self, count: usize) -> Self {
+        self.max_custom_claims = count;
+        self
+    }
+
+    pub fn with_max_string_claim_length(mut self, length: usize) -> Self {
+        self.max_string_claim_length = length;
+        self
+    }
+}
+
+/// Validate string length to prevent memory exhaustion
+fn validate_string_length_with_limit(
+    s: &str,
+    claim_name: &str,
+    max_length: usize,
+) -> Result<(), CatError> {
+    if s.len() > max_length {
+        return Err(CatError::InvalidClaimValue(format!(
+            "{} too long: {} bytes (max {} bytes)",
+            claim_name,
+            s.len(),
+            max_length
+        )));
+    }
+    Ok(())
+}
+
+/// Validate string length using default limit
+fn validate_string_length(s: &str, claim_name: &str) -> Result<(), CatError> {
+    validate_string_length_with_limit(s, claim_name, DEFAULT_MAX_STRING_CLAIM_LENGTH)
+}
+
 impl Cwt {
+    /// Decode CBOR payload with default limits
     pub fn decode_payload(cbor_data: &[u8]) -> Result<CatToken, CatError> {
+        Self::decode_payload_with_limits(cbor_data, &CwtLimits::default())
+    }
+
+    /// Decode CBOR payload with custom limits
+    pub fn decode_payload_with_limits(
+        cbor_data: &[u8],
+        limits: &CwtLimits,
+    ) -> Result<CatToken, CatError> {
+        // Limit CBOR payload size to prevent memory exhaustion
+        if cbor_data.len() > limits.max_cbor_payload_size {
+            return Err(CatError::InvalidCbor(format!(
+                "CBOR payload too large: {} bytes (max {} bytes)",
+                cbor_data.len(),
+                limits.max_cbor_payload_size
+            )));
+        }
+
         let value: Value = ciborium::de::from_reader(cbor_data)
             .map_err(|e| CatError::InvalidCbor(e.to_string()))?;
 
@@ -422,6 +538,7 @@ impl Cwt {
             match claim_id {
                 CLAIM_ISS => {
                     if let Value::Text(s) = value {
+                        validate_string_length(&s, "issuer")?;
                         core.iss = Some(s);
                     }
                 }
@@ -430,6 +547,7 @@ impl Cwt {
                         let mut audiences = Vec::new();
                         for item in arr {
                             if let Value::Text(s) = item {
+                                validate_string_length(&s, "audience")?;
                                 audiences.push(s);
                             }
                         }
@@ -448,7 +566,13 @@ impl Cwt {
                 }
                 CLAIM_CTI => match value {
                     Value::Bytes(b) => {
-                        core.cti = Some(String::from_utf8_lossy(&b).to_string());
+                        // Reject invalid UTF-8 instead of silently replacing
+                        core.cti = Some(
+                            String::from_utf8(b)
+                                .map_err(|_| CatError::InvalidClaimValue(
+                                    "CTI contains invalid UTF-8".to_string()
+                                ))?
+                        );
                     }
                     Value::Text(s) => {
                         core.cti = Some(s);
@@ -548,15 +672,25 @@ impl Cwt {
                 }
                 CLAIM_CATH => {
                     if let Value::Array(arr) = value {
+                        // Limit URI pattern count
+                        if arr.len() > DEFAULT_MAX_URI_PATTERNS {
+                            return Err(CatError::InvalidClaimValue(format!(
+                                "Too many URI patterns: {} (max {})",
+                                arr.len(),
+                                DEFAULT_MAX_URI_PATTERNS
+                            )));
+                        }
                         let mut patterns = Vec::new();
                         for item in arr {
                             if let Value::Text(s) = item {
+                                validate_string_length(&s, "URI pattern")?;
                                 patterns.push(UriPattern::Exact(s));
                             } else if let Value::Map(pattern_map) = item
                                 && let Some((key, val)) = pattern_map.into_iter().next()
                                 && let (Value::Text(pattern_type), Value::Text(pattern_value)) =
                                     (key, val)
                             {
+                                validate_string_length(&pattern_value, "URI pattern")?;
                                 match pattern_type.as_str() {
                                     "exact" => patterns.push(UriPattern::Exact(pattern_value)),
                                     "prefix" => patterns.push(UriPattern::Prefix(pattern_value)),
@@ -633,6 +767,7 @@ impl Cwt {
                 }
                 CLAIM_SUB => {
                     if let Value::Text(s) = value {
+                        validate_string_length(&s, "subject")?;
                         informational.sub = Some(s);
                     }
                 }
@@ -652,6 +787,7 @@ impl Cwt {
                     if let Value::Map(map) = value {
                         for (k, v) in map {
                             if let Value::Integer(key_int) = k {
+                                // Unknown keys (conversion failure) default to -1, which is ignored
                                 let key_val: i64 = key_int.try_into().unwrap_or(-1);
                                 if key_val == CNF_JKT
                                     && let Value::Bytes(jkt) = v
@@ -668,21 +804,32 @@ impl Cwt {
                         let mut settings = CatDpopSettings::new();
                         for (k, v) in map {
                             if let Value::Integer(key_int) = k {
+                                // Unknown keys (conversion failure) default to -1, which is ignored
                                 let key_val: i64 = key_int.try_into().unwrap_or(-1);
                                 match key_val {
                                     0 => {
                                         if let Value::Integer(window) = v {
-                                            settings.window =
-                                                Some(window.try_into().unwrap_or(300));
+                                            // Reject invalid window values instead of defaulting
+                                            let window_val: i64 = window.try_into()
+                                                .map_err(|_| CatError::InvalidClaimValue(
+                                                    "Invalid DPoP window value".to_string()
+                                                ))?;
+                                            if window_val <= 0 {
+                                                return Err(CatError::InvalidClaimValue(
+                                                    "DPoP window must be positive".to_string()
+                                                ));
+                                            }
+                                            settings.window = Some(window_val);
                                         }
                                     }
                                     1 => {
                                         if let Value::Integer(jti_val) = v {
+                                            // Invalid boolean defaults to true (honor_jti=true is safer)
                                             let jti_i64: i64 = jti_val.try_into().unwrap_or(1);
                                             settings.honor_jti = Some(jti_i64 != 0);
                                         }
                                     }
-                                    _ => {}
+                                    _ => {} // Unknown keys are ignored per forward compatibility
                                 }
                             }
                         }
@@ -702,6 +849,14 @@ impl Cwt {
                 #[cfg(feature = "moqt")]
                 CLAIM_MOQT => {
                     if let Value::Array(scopes_array) = value {
+                        // Limit scope count to prevent memory exhaustion
+                        if scopes_array.len() > DEFAULT_MAX_MOQT_SCOPES {
+                            return Err(CatError::InvalidClaimValue(format!(
+                                "Too many MOQT scopes: {} (max {})",
+                                scopes_array.len(),
+                                DEFAULT_MAX_MOQT_SCOPES
+                            )));
+                        }
                         let mut scopes = Vec::new();
                         for scope_value in scopes_array {
                             if let Value::Array(scope_array) = scope_value {
@@ -716,7 +871,14 @@ impl Cwt {
                                             && let Ok(action_i32) =
                                                 TryInto::<i32>::try_into(*action_int)
                                         {
-                                            actions.push(MoqtAction::from(action_i32));
+                                            match MoqtAction::try_from(action_i32) {
+                                                Ok(action) => actions.push(action),
+                                                Err(_) => {
+                                                    return Err(CatError::InvalidClaimValue(
+                                                        format!("Invalid MOQT action: {}", action_i32),
+                                                    ));
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -727,6 +889,14 @@ impl Cwt {
                                 if scope_array.len() > 1
                                     && let Value::Array(ref ns_array) = scope_array[1]
                                 {
+                                    // Limit namespace matches per scope
+                                    if ns_array.len() > DEFAULT_MAX_NAMESPACE_MATCHES_PER_SCOPE {
+                                        return Err(CatError::InvalidClaimValue(format!(
+                                            "Too many namespace matches per scope: {} (max {})",
+                                            ns_array.len(),
+                                            DEFAULT_MAX_NAMESPACE_MATCHES_PER_SCOPE
+                                        )));
+                                    }
                                     for ns_value in ns_array {
                                         namespace_matches.push(decode_namespace_match(ns_value)?);
                                     }
@@ -757,6 +927,13 @@ impl Cwt {
                     }
                 }
                 _ => {
+                    // Limit custom claims count to prevent memory exhaustion
+                    if custom.len() >= DEFAULT_MAX_CUSTOM_CLAIMS {
+                        return Err(CatError::InvalidClaimValue(format!(
+                            "Too many custom claims (max {})",
+                            DEFAULT_MAX_CUSTOM_CLAIMS
+                        )));
+                    }
                     custom.insert(claim_id, value);
                 }
             }

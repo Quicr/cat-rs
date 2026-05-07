@@ -11,7 +11,9 @@ use crate::{CryptographicAlgorithm, MoqtAction};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "moqt")]
-use std::collections::HashMap;
+use lru::LruCache;
+#[cfg(feature = "moqt")]
+use std::num::NonZeroUsize;
 #[cfg(feature = "moqt")]
 use std::sync::{Arc, RwLock};
 #[cfg(feature = "moqt")]
@@ -19,11 +21,27 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const DPOP_TYP: &str = "dpop+jwt";
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Supported DPoP algorithms
+pub const SUPPORTED_DPOP_ALGORITHMS: &[&str] = &["ES256", "PS256", "HS256"];
+
+/// Maximum size for DPoP proof parts (header/payload) in bytes
+const MAX_DPOP_PART_SIZE: usize = 16 * 1024; // 16KB
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DpopHeader {
     pub typ: String,
     pub alg: String,
     pub jwk: Jwk,
+}
+
+impl std::fmt::Debug for DpopHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DpopHeader")
+            .field("typ", &self.typ)
+            .field("alg", &self.alg)
+            .field("jwk", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl DpopHeader {
@@ -36,7 +54,12 @@ impl DpopHeader {
     }
 
     pub fn is_valid(&self) -> bool {
-        self.typ == DPOP_TYP && !self.alg.is_empty()
+        self.typ == DPOP_TYP && self.is_supported_algorithm()
+    }
+
+    /// Check if the algorithm is one of the supported algorithms
+    pub fn is_supported_algorithm(&self) -> bool {
+        SUPPORTED_DPOP_ALGORITHMS.contains(&self.alg.as_str())
     }
 }
 
@@ -74,15 +97,16 @@ impl AuthorizationContext {
     }
 
     pub fn action_string(&self) -> &'static str {
-        match MoqtAction::from(self.action) {
-            MoqtAction::ClientSetup | MoqtAction::ServerSetup => "SETUP",
-            MoqtAction::PublishNamespace => "PUB_NS",
-            MoqtAction::SubscribeNamespace => "SUB_NS",
-            MoqtAction::Subscribe => "SUBSCRIBE",
-            MoqtAction::RequestUpdate => "REQ_UPDATE",
-            MoqtAction::Publish => "PUBLISH",
-            MoqtAction::Fetch => "FETCH",
-            MoqtAction::TrackStatus => "TRK_STATUS",
+        match MoqtAction::try_from(self.action) {
+            Ok(MoqtAction::ClientSetup) | Ok(MoqtAction::ServerSetup) => "SETUP",
+            Ok(MoqtAction::PublishNamespace) => "PUB_NS",
+            Ok(MoqtAction::SubscribeNamespace) => "SUB_NS",
+            Ok(MoqtAction::Subscribe) => "SUBSCRIBE",
+            Ok(MoqtAction::RequestUpdate) => "REQ_UPDATE",
+            Ok(MoqtAction::Publish) => "PUBLISH",
+            Ok(MoqtAction::Fetch) => "FETCH",
+            Ok(MoqtAction::TrackStatus) => "TRK_STATUS",
+            Err(_) => "UNKNOWN",
         }
     }
 }
@@ -129,12 +153,36 @@ impl DpopPayload {
     }
 
     pub fn is_fresh(&self, window_seconds: i64) -> bool {
+        self.is_fresh_with_future_tolerance(window_seconds, 30) // Allow 30 seconds clock drift (conservative)
+    }
+
+    pub fn is_fresh_with_future_tolerance(
+        &self,
+        window_seconds: i64,
+        future_tolerance_seconds: i64,
+    ) -> bool {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or(Duration::ZERO)
             .as_secs() as i64;
 
-        (now - self.iat).abs() <= window_seconds
+        // Use checked arithmetic to prevent overflow with extreme timestamp values
+        let age = match now.checked_sub(self.iat) {
+            Some(a) => a,
+            None => return false, // Overflow means extremely distant timestamp
+        };
+
+        // Reject if too old (past the window)
+        if age > window_seconds {
+            return false;
+        }
+
+        // Reject if too far in the future (with small tolerance for clock drift)
+        if age < -future_tolerance_seconds {
+            return false;
+        }
+
+        true
     }
 }
 
@@ -151,11 +199,22 @@ pub fn confirmation_matches_jwk(cnf: &ConfirmationClaim, jwk: &Jwk) -> Result<bo
 }
 
 #[cfg(feature = "moqt")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DpopProof {
     pub header: DpopHeader,
     pub payload: DpopPayload,
     pub signature: Vec<u8>,
+}
+
+#[cfg(feature = "moqt")]
+impl std::fmt::Debug for DpopProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DpopProof")
+            .field("header", &self.header)
+            .field("payload", &self.payload)
+            .field("signature", &format!("[{} bytes]", self.signature.len()))
+            .finish()
+    }
 }
 
 #[cfg(feature = "moqt")]
@@ -233,6 +292,13 @@ impl DpopProof {
             return Err(CatError::InvalidTokenFormat);
         }
 
+        // Validate part sizes before decoding to prevent memory exhaustion
+        for part in &parts {
+            if part.len() > MAX_DPOP_PART_SIZE {
+                return Err(CatError::InvalidTokenFormat);
+            }
+        }
+
         let header_json = URL_SAFE_NO_PAD
             .decode(parts[0])
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
@@ -242,6 +308,11 @@ impl DpopProof {
         let signature = URL_SAFE_NO_PAD
             .decode(parts[2])
             .map_err(|e| CatError::InvalidBase64(e.to_string()))?;
+
+        // Additional size check after decoding
+        if header_json.len() > MAX_DPOP_PART_SIZE || payload_json.len() > MAX_DPOP_PART_SIZE {
+            return Err(CatError::InvalidTokenFormat);
+        }
 
         let header: DpopHeader = serde_json::from_slice(&header_json)
             .map_err(|e| CatError::InvalidClaimValue(e.to_string()))?;
@@ -263,34 +334,73 @@ impl DpopProof {
     }
 }
 
+const DEFAULT_JTI_CACHE_SIZE: usize = 100_000;
+
+/// Minimum JTI cache size to provide meaningful replay protection
+const MIN_JTI_CACHE_SIZE: usize = 1000;
+
+/// Statistics about the JTI cache
+#[cfg(feature = "moqt")]
+#[derive(Debug, Clone, Default)]
+pub struct JtiCacheStats {
+    /// Number of JTIs currently in cache
+    pub size: usize,
+    /// Maximum capacity of the cache
+    pub capacity: usize,
+    /// True if cache is at or near capacity (>90%)
+    pub under_pressure: bool,
+}
+
 #[cfg(feature = "moqt")]
 #[derive(Clone)]
 pub struct DpopValidator {
     settings: CatDpopSettings,
-    used_jtis: Arc<RwLock<HashMap<String, i64>>>,
+    used_jtis: Arc<RwLock<LruCache<String, i64>>>,
     jti_expiry_seconds: i64,
+    cache_capacity: usize,
 }
 
 #[cfg(feature = "moqt")]
 impl DpopValidator {
     pub fn new(settings: CatDpopSettings) -> Self {
+        Self::with_cache_size(settings, DEFAULT_JTI_CACHE_SIZE)
+    }
+
+    pub fn with_cache_size(settings: CatDpopSettings, cache_size: usize) -> Self {
+        // Enforce minimum cache size for meaningful replay protection
+        let effective_size = cache_size.max(MIN_JTI_CACHE_SIZE);
+        // SAFETY: effective_size >= MIN_JTI_CACHE_SIZE (1000), so always non-zero
+        let nz_cache_size = NonZeroUsize::new(effective_size)
+            .expect("MIN_JTI_CACHE_SIZE guarantees non-zero");
         Self {
             jti_expiry_seconds: settings.effective_window() * 2,
             settings,
-            used_jtis: Arc::new(RwLock::new(HashMap::new())),
+            used_jtis: Arc::new(RwLock::new(LruCache::new(nz_cache_size))),
+            cache_capacity: effective_size,
         }
     }
 
-    pub fn validate(
-        &self,
-        proof: &DpopProof,
-        expected_action: MoqtAction,
-        expected_thumbprint: &[u8],
-    ) -> Result<(), CatError> {
-        self.validate_with_ath(proof, expected_action, expected_thumbprint, None)
+    /// Get statistics about the JTI cache.
+    ///
+    /// Use this to monitor cache pressure. If `under_pressure` is true,
+    /// consider increasing the cache size or reducing the validation window
+    /// to prevent potential replay attacks due to early eviction.
+    pub fn jti_cache_stats(&self) -> JtiCacheStats {
+        let size = self
+            .used_jtis
+            .read()
+            .map(|cache| cache.len())
+            .unwrap_or(0);
+        let under_pressure = size >= (self.cache_capacity * 9 / 10);
+        JtiCacheStats {
+            size,
+            capacity: self.cache_capacity,
+            under_pressure,
+        }
     }
 
-    pub fn validate_with_ath(
+    /// Validate DPoP proof claims (internal helper, does not verify signature).
+    fn validate_claims(
         &self,
         proof: &DpopProof,
         expected_action: MoqtAction,
@@ -325,11 +435,13 @@ impl DpopValidator {
 
         if let Some(expected_ath) = access_token_hash {
             match &proof.payload.ath {
-                Some(ath) if ath == expected_ath => {}
-                Some(_) => {
-                    return Err(CatError::DpopValidationFailed(
-                        "Access token hash mismatch".to_string(),
-                    ));
+                Some(ath) => {
+                    // Use constant-time comparison for access token hash
+                    if !crate::crypto::constant_time_eq(ath.as_bytes(), expected_ath.as_bytes()) {
+                        return Err(CatError::DpopValidationFailed(
+                            "Access token hash mismatch".to_string(),
+                        ));
+                    }
                 }
                 None => {
                     return Err(CatError::DpopValidationFailed(
@@ -346,15 +458,18 @@ impl DpopValidator {
                 .used_jtis
                 .write()
                 .map_err(|_| CatError::CryptoError("Lock poisoned".to_string()))?;
-            if jtis.contains_key(jti) {
+            if jtis.contains(jti) {
                 return Err(CatError::ReplayAttackDetected);
             }
-            jtis.insert(jti.clone(), proof.payload.iat);
+            jtis.put(jti.clone(), proof.payload.iat);
         }
 
         Ok(())
     }
 
+    /// Validate DPoP proof with full signature verification.
+    ///
+    /// Verifies both the claims and the cryptographic signature.
     pub fn validate_with_algorithm(
         &self,
         proof: &DpopProof,
@@ -362,7 +477,26 @@ impl DpopValidator {
         expected_thumbprint: &[u8],
         algorithm: &dyn CryptographicAlgorithm,
     ) -> Result<(), CatError> {
-        self.validate(proof, expected_action, expected_thumbprint)?;
+        self.validate_claims(proof, expected_action, expected_thumbprint, None)?;
+
+        let signing_input = proof.signing_input()?;
+        if !algorithm.verify(&signing_input, &proof.signature)? {
+            return Err(CatError::SignatureVerificationFailed);
+        }
+
+        Ok(())
+    }
+
+    /// Validate DPoP proof with full signature verification and access token hash.
+    pub fn validate_with_algorithm_and_ath(
+        &self,
+        proof: &DpopProof,
+        expected_action: MoqtAction,
+        expected_thumbprint: &[u8],
+        algorithm: &dyn CryptographicAlgorithm,
+        access_token_hash: Option<&str>,
+    ) -> Result<(), CatError> {
+        self.validate_claims(proof, expected_action, expected_thumbprint, access_token_hash)?;
 
         let signing_input = proof.signing_input()?;
         if !algorithm.verify(&signing_input, &proof.signature)? {
@@ -379,7 +513,15 @@ impl DpopValidator {
             .as_secs() as i64;
 
         if let Ok(mut jtis) = self.used_jtis.write() {
-            jtis.retain(|_, &mut iat| now - iat < self.jti_expiry_seconds);
+            // LruCache doesn't have retain, so we collect expired keys first
+            let expired: Vec<String> = jtis
+                .iter()
+                .filter(|(_, iat)| now - **iat >= self.jti_expiry_seconds)
+                .map(|(k, _)| k.clone())
+                .collect();
+            for key in expired {
+                jtis.pop(&key);
+            }
         }
     }
 }
@@ -427,7 +569,7 @@ mod tests {
     #[test]
     fn test_dpop_proof_creation() {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
-        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
+        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key()).unwrap();
 
         let mut proof =
             DpopProof::create_for_moqt(MoqtAction::Subscribe, b"namespace", b"track", "ES256", jwk);
@@ -446,7 +588,7 @@ mod tests {
     #[test]
     fn test_dpop_validation() {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
-        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
+        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key()).unwrap();
         let thumbprint = jwk.thumbprint().unwrap();
 
         let mut proof =
@@ -458,8 +600,9 @@ mod tests {
         let settings = CatDpopSettings::new().with_window(300);
         let validator = DpopValidator::new(settings);
 
+        // Use validate_with_algorithm for full validation including signature verification
         validator
-            .validate(&proof, MoqtAction::Subscribe, &thumbprint)
+            .validate_with_algorithm(&proof, MoqtAction::Subscribe, &thumbprint, &alg)
             .unwrap();
     }
 
@@ -489,7 +632,7 @@ mod tests {
     #[test]
     fn test_confirmation_claim() {
         let alg = Es256Algorithm::new_with_key_pair().unwrap();
-        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key());
+        let jwk = Jwk::from_es256_verifying_key(alg.verifying_key()).unwrap();
 
         let cnf = confirmation_from_jwk(&jwk).unwrap();
         assert_eq!(cnf.jkt.len(), 32);

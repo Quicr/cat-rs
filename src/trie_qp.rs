@@ -5,6 +5,46 @@
 use qp_trie::Trie;
 use std::collections::HashMap;
 
+/// Default maximum regex pattern string length (4KB)
+pub const DEFAULT_MAX_REGEX_PATTERN_LENGTH: usize = 4 * 1024;
+
+/// Default maximum number of regex patterns per UriMatcher
+pub const DEFAULT_MAX_REGEX_PATTERNS: usize = 100;
+
+/// Configuration for UriMatcher limits
+#[derive(Debug, Clone)]
+pub struct UriMatcherLimits {
+    /// Maximum regex pattern string length in bytes
+    pub max_regex_pattern_length: usize,
+    /// Maximum number of regex patterns
+    pub max_regex_patterns: usize,
+}
+
+impl Default for UriMatcherLimits {
+    fn default() -> Self {
+        Self {
+            max_regex_pattern_length: DEFAULT_MAX_REGEX_PATTERN_LENGTH,
+            max_regex_patterns: DEFAULT_MAX_REGEX_PATTERNS,
+        }
+    }
+}
+
+impl UriMatcherLimits {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_max_regex_pattern_length(mut self, length: usize) -> Self {
+        self.max_regex_pattern_length = length;
+        self
+    }
+
+    pub fn with_max_regex_patterns(mut self, count: usize) -> Self {
+        self.max_regex_patterns = count;
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrefixTrie {
     trie: Trie<Vec<u8>, String>,
@@ -65,7 +105,7 @@ impl PrefixTrie {
     pub fn get_all_patterns(&self) -> Vec<String> {
         self.trie
             .keys()
-            .map(|k| String::from_utf8_lossy(k).into_owned())
+            .filter_map(|k| String::from_utf8(k.to_vec()).ok())
             .collect()
     }
 
@@ -145,9 +185,9 @@ impl SuffixTrie {
     pub fn get_all_patterns(&self) -> Vec<String> {
         self.trie
             .keys()
-            .map(|k| {
+            .filter_map(|k| {
                 let reversed: Vec<u8> = k.iter().rev().cloned().collect();
-                String::from_utf8_lossy(&reversed).into_owned()
+                String::from_utf8(reversed).ok()
             })
             .collect()
     }
@@ -172,7 +212,8 @@ pub struct UriMatcher {
     suffix_trie: SuffixTrie,
     exact_patterns: HashMap<String, String>,
     regex_patterns: Vec<(regex::Regex, String)>,
-    hash_patterns: HashMap<String, String>,
+    hash_patterns: HashMap<[u8; 32], String>,
+    limits: UriMatcherLimits,
 }
 
 impl Default for UriMatcher {
@@ -183,12 +224,17 @@ impl Default for UriMatcher {
 
 impl UriMatcher {
     pub fn new() -> Self {
+        Self::with_limits(UriMatcherLimits::default())
+    }
+
+    pub fn with_limits(limits: UriMatcherLimits) -> Self {
         Self {
             prefix_trie: PrefixTrie::new(),
             suffix_trie: SuffixTrie::new(),
             exact_patterns: HashMap::new(),
             regex_patterns: Vec::new(),
             hash_patterns: HashMap::new(),
+            limits,
         }
     }
 
@@ -210,11 +256,37 @@ impl UriMatcher {
                 self.suffix_trie.insert(&suffix, value);
             }
             crate::claims::UriPattern::Regex(pattern) => {
-                let regex = regex::Regex::new(&pattern)?;
+                // Limit number of regex patterns to prevent CPU exhaustion
+                if self.regex_patterns.len() >= self.limits.max_regex_patterns {
+                    return Err(format!(
+                        "Too many regex patterns: {} (max {})",
+                        self.regex_patterns.len() + 1,
+                        self.limits.max_regex_patterns
+                    )
+                    .into());
+                }
+                // Validate pattern string length
+                if pattern.len() > self.limits.max_regex_pattern_length {
+                    return Err(format!(
+                        "Regex pattern too long: {} bytes (max {} bytes)",
+                        pattern.len(),
+                        self.limits.max_regex_pattern_length
+                    )
+                    .into());
+                }
+                let regex = regex::RegexBuilder::new(&pattern)
+                    .size_limit(1024 * 100) // 100KB compiled size limit
+                    .dfa_size_limit(1024 * 100) // 100KB DFA size limit
+                    .build()?;
                 self.regex_patterns.push((regex, pattern));
             }
             crate::claims::UriPattern::Hash(hash) => {
-                self.hash_patterns.insert(hash.clone(), hash);
+                // Decode hex hash to bytes for efficient comparison
+                let hash_bytes: [u8; 32] = hex::decode(&hash)
+                    .map_err(|e| format!("Invalid hash hex: {}", e))?
+                    .try_into()
+                    .map_err(|_| "Hash must be 32 bytes (SHA-256)")?;
+                self.hash_patterns.insert(hash_bytes, hash);
             }
         }
         Ok(())
@@ -243,10 +315,13 @@ impl UriMatcher {
             }
         }
 
-        // Check hash match
+        // Check hash match (compare bytes directly for efficiency)
         let uri_hash = crate::crypto::hash_sha256(uri.as_bytes());
-        let uri_hash_hex = hex::encode(uri_hash);
-        if self.hash_patterns.contains_key(&uri_hash_hex) {
+        // SHA-256 always produces exactly 32 bytes
+        let uri_hash_array: [u8; 32] = uri_hash
+            .try_into()
+            .expect("SHA-256 always produces 32 bytes");
+        if self.hash_patterns.contains_key(&uri_hash_array) {
             return true;
         }
 
@@ -278,10 +353,13 @@ impl UriMatcher {
             }
         }
 
-        // Check hash match
+        // Check hash match (compare bytes directly for efficiency)
         let uri_hash = crate::crypto::hash_sha256(uri.as_bytes());
-        let uri_hash_hex = hex::encode(uri_hash);
-        if let Some(pattern) = self.hash_patterns.get(&uri_hash_hex) {
+        // SHA-256 always produces exactly 32 bytes
+        let uri_hash_array: [u8; 32] = uri_hash
+            .try_into()
+            .expect("SHA-256 always produces 32 bytes");
+        if let Some(pattern) = self.hash_patterns.get(&uri_hash_array) {
             matches.push(format!("hash:{}", pattern));
         }
 

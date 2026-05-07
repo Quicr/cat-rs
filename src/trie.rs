@@ -4,6 +4,49 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Maximum depth for trie traversal to prevent stack overflow
+const MAX_TRIE_DEPTH: usize = 1000;
+
+/// Default maximum regex pattern string length (4KB)
+pub const DEFAULT_MAX_REGEX_PATTERN_LENGTH: usize = 4 * 1024;
+
+/// Default maximum number of regex patterns per UriMatcher
+pub const DEFAULT_MAX_REGEX_PATTERNS: usize = 100;
+
+/// Configuration for UriMatcher limits
+#[derive(Debug, Clone)]
+pub struct UriMatcherLimits {
+    /// Maximum regex pattern string length in bytes
+    pub max_regex_pattern_length: usize,
+    /// Maximum number of regex patterns
+    pub max_regex_patterns: usize,
+}
+
+impl Default for UriMatcherLimits {
+    fn default() -> Self {
+        Self {
+            max_regex_pattern_length: DEFAULT_MAX_REGEX_PATTERN_LENGTH,
+            max_regex_patterns: DEFAULT_MAX_REGEX_PATTERNS,
+        }
+    }
+}
+
+impl UriMatcherLimits {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_max_regex_pattern_length(mut self, length: usize) -> Self {
+        self.max_regex_pattern_length = length;
+        self
+    }
+
+    pub fn with_max_regex_patterns(mut self, count: usize) -> Self {
+        self.max_regex_patterns = count;
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TrieNode {
     pub children: HashMap<char, Box<TrieNode>>,
@@ -87,32 +130,46 @@ impl PrefixTrie {
 
     pub fn get_all_patterns(&self) -> Vec<String> {
         let mut patterns = Vec::new();
-        self.collect_patterns(&self.root, String::new(), &mut patterns);
+        // Use iterative approach with explicit stack to prevent stack overflow
+        let mut stack: Vec<(&TrieNode, String)> = vec![(&self.root, String::new())];
+
+        while let Some((node, prefix)) = stack.pop() {
+            // Depth limit check
+            if prefix.len() > MAX_TRIE_DEPTH {
+                continue;
+            }
+
+            if node.is_terminal {
+                patterns.push(prefix.clone());
+            }
+
+            for (ch, child) in &node.children {
+                let mut new_prefix = prefix.clone();
+                new_prefix.push(*ch);
+                stack.push((child, new_prefix));
+            }
+        }
+
         patterns
     }
 
-    fn collect_patterns(&self, node: &TrieNode, prefix: String, patterns: &mut Vec<String>) {
-        if node.is_terminal {
-            patterns.push(prefix.clone());
-        }
-
-        for (ch, child) in &node.children {
-            let mut new_prefix = prefix.clone();
-            new_prefix.push(*ch);
-            self.collect_patterns(child, new_prefix, patterns);
-        }
-    }
-
     pub fn remove(&mut self, pattern: &str) -> bool {
-        let removed = Self::remove_recursive_static(&mut self.root, pattern, 0);
+        // Collect chars once for efficient indexing
+        let chars: Vec<char> = pattern.chars().collect();
+        let removed = Self::remove_recursive_static(&mut self.root, &chars, 0);
         if removed {
             self.size -= 1;
         }
         removed
     }
 
-    fn remove_recursive_static(node: &mut TrieNode, pattern: &str, index: usize) -> bool {
-        if index == pattern.len() {
+    fn remove_recursive_static(node: &mut TrieNode, chars: &[char], index: usize) -> bool {
+        // Depth limit to prevent stack overflow
+        if index > MAX_TRIE_DEPTH {
+            return false;
+        }
+
+        if index == chars.len() {
             if node.is_terminal {
                 node.is_terminal = false;
                 node.value = None;
@@ -121,15 +178,17 @@ impl PrefixTrie {
             return false;
         }
 
-        let ch = pattern.chars().nth(index).unwrap();
+        let ch = match chars.get(index) {
+            Some(&c) => c,
+            None => return false,
+        };
 
         if let Some(mut child) = node.children.remove(&ch) {
-            let child_removed = Self::remove_recursive_static(&mut child, pattern, index + 1);
+            let child_removed = Self::remove_recursive_static(&mut child, chars, index + 1);
 
             if child_removed {
                 if !child.is_terminal && child.children.is_empty() {
                     // Don't reinsert the child, it should be deleted
-                    // Return true to indicate successful removal, let parent handle its own cleanup
                     return true;
                 } else {
                     // Reinsert the child since it still has value or other children
@@ -222,36 +281,50 @@ impl SuffixTrie {
 
     pub fn get_all_patterns(&self) -> Vec<String> {
         let mut patterns = Vec::new();
-        self.collect_patterns(&self.root, String::new(), &mut patterns);
+        // Use iterative approach with explicit stack to prevent stack overflow
+        let mut stack: Vec<(&TrieNode, String)> = vec![(&self.root, String::new())];
+
+        while let Some((node, prefix)) = stack.pop() {
+            // Depth limit check
+            if prefix.len() > MAX_TRIE_DEPTH {
+                continue;
+            }
+
+            if node.is_terminal {
+                patterns.push(prefix.clone());
+            }
+
+            for (ch, child) in &node.children {
+                let mut new_prefix = prefix.clone();
+                new_prefix.push(*ch);
+                stack.push((child, new_prefix));
+            }
+        }
+
+        // Reverse the patterns since SuffixTrie stores reversed strings
         patterns
             .into_iter()
             .map(|p| p.chars().rev().collect())
             .collect()
     }
 
-    fn collect_patterns(&self, node: &TrieNode, prefix: String, patterns: &mut Vec<String>) {
-        if node.is_terminal {
-            patterns.push(prefix.clone());
-        }
-
-        for (ch, child) in &node.children {
-            let mut new_prefix = prefix.clone();
-            new_prefix.push(*ch);
-            self.collect_patterns(child, new_prefix, patterns);
-        }
-    }
-
     pub fn remove(&mut self, pattern: &str) -> bool {
         let reversed: String = pattern.chars().rev().collect();
-        let removed = Self::remove_recursive_static(&mut self.root, &reversed, 0);
+        let chars: Vec<char> = reversed.chars().collect();
+        let removed = Self::remove_recursive_static(&mut self.root, &chars, 0);
         if removed {
             self.size -= 1;
         }
         removed
     }
 
-    fn remove_recursive_static(node: &mut TrieNode, pattern: &str, index: usize) -> bool {
-        if index == pattern.len() {
+    fn remove_recursive_static(node: &mut TrieNode, chars: &[char], index: usize) -> bool {
+        // Depth limit to prevent stack overflow
+        if index > MAX_TRIE_DEPTH {
+            return false;
+        }
+
+        if index == chars.len() {
             if node.is_terminal {
                 node.is_terminal = false;
                 node.value = None;
@@ -260,15 +333,17 @@ impl SuffixTrie {
             return false;
         }
 
-        let ch = pattern.chars().nth(index).unwrap();
+        let ch = match chars.get(index) {
+            Some(&c) => c,
+            None => return false,
+        };
 
         if let Some(mut child) = node.children.remove(&ch) {
-            let child_removed = Self::remove_recursive_static(&mut child, pattern, index + 1);
+            let child_removed = Self::remove_recursive_static(&mut child, chars, index + 1);
 
             if child_removed {
                 if !child.is_terminal && child.children.is_empty() {
                     // Don't reinsert the child, it should be deleted
-                    // Return true to indicate successful removal, let parent handle its own cleanup
                     return true;
                 } else {
                     // Reinsert the child since it still has value or other children
@@ -289,18 +364,35 @@ impl SuffixTrie {
     }
 }
 
-#[derive(Default)]
 pub struct UriMatcher {
     prefix_trie: PrefixTrie,
     suffix_trie: SuffixTrie,
     exact_patterns: HashMap<String, String>,
     regex_patterns: Vec<(regex::Regex, String)>,
-    hash_patterns: HashMap<String, String>,
+    hash_patterns: HashMap<[u8; 32], String>,
+    limits: UriMatcherLimits,
+}
+
+impl Default for UriMatcher {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl UriMatcher {
     pub fn new() -> Self {
-        Self::default()
+        Self::with_limits(UriMatcherLimits::default())
+    }
+
+    pub fn with_limits(limits: UriMatcherLimits) -> Self {
+        Self {
+            prefix_trie: PrefixTrie::default(),
+            suffix_trie: SuffixTrie::default(),
+            exact_patterns: HashMap::new(),
+            regex_patterns: Vec::new(),
+            hash_patterns: HashMap::new(),
+            limits,
+        }
     }
 
     pub fn add_pattern(
@@ -321,11 +413,37 @@ impl UriMatcher {
                 self.suffix_trie.insert(&suffix, value);
             }
             crate::claims::UriPattern::Regex(pattern) => {
-                let regex = regex::Regex::new(&pattern)?;
+                // Limit number of regex patterns to prevent CPU exhaustion
+                if self.regex_patterns.len() >= self.limits.max_regex_patterns {
+                    return Err(format!(
+                        "Too many regex patterns: {} (max {})",
+                        self.regex_patterns.len() + 1,
+                        self.limits.max_regex_patterns
+                    )
+                    .into());
+                }
+                // Validate pattern string length
+                if pattern.len() > self.limits.max_regex_pattern_length {
+                    return Err(format!(
+                        "Regex pattern too long: {} bytes (max {} bytes)",
+                        pattern.len(),
+                        self.limits.max_regex_pattern_length
+                    )
+                    .into());
+                }
+                let regex = regex::RegexBuilder::new(&pattern)
+                    .size_limit(1024 * 100) // 100KB compiled size limit
+                    .dfa_size_limit(1024 * 100) // 100KB DFA size limit
+                    .build()?;
                 self.regex_patterns.push((regex, pattern));
             }
             crate::claims::UriPattern::Hash(hash) => {
-                self.hash_patterns.insert(hash.clone(), hash);
+                // Decode hex hash to bytes for efficient comparison
+                let hash_bytes: [u8; 32] = hex::decode(&hash)
+                    .map_err(|e| format!("Invalid hash hex: {}", e))?
+                    .try_into()
+                    .map_err(|_| "Hash must be 32 bytes (SHA-256)")?;
+                self.hash_patterns.insert(hash_bytes, hash);
             }
         }
         Ok(())
@@ -354,10 +472,13 @@ impl UriMatcher {
             }
         }
 
-        // Check hash match
+        // Check hash match (compare bytes directly for efficiency)
         let uri_hash = crate::crypto::hash_sha256(uri.as_bytes());
-        let uri_hash_hex = hex::encode(uri_hash);
-        if self.hash_patterns.contains_key(&uri_hash_hex) {
+        // SHA-256 always produces exactly 32 bytes
+        let uri_hash_array: [u8; 32] = uri_hash
+            .try_into()
+            .expect("SHA-256 always produces 32 bytes");
+        if self.hash_patterns.contains_key(&uri_hash_array) {
             return true;
         }
 
@@ -389,10 +510,13 @@ impl UriMatcher {
             }
         }
 
-        // Check hash match
+        // Check hash match (compare bytes directly for efficiency)
         let uri_hash = crate::crypto::hash_sha256(uri.as_bytes());
-        let uri_hash_hex = hex::encode(uri_hash);
-        if let Some(pattern) = self.hash_patterns.get(&uri_hash_hex) {
+        // SHA-256 always produces exactly 32 bytes
+        let uri_hash_array: [u8; 32] = uri_hash
+            .try_into()
+            .expect("SHA-256 always produces 32 bytes");
+        if let Some(pattern) = self.hash_patterns.get(&uri_hash_array) {
             matches.push(format!("hash:{}", pattern));
         }
 
