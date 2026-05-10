@@ -1,11 +1,11 @@
 [package]
 name = "cat-token"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Suhas Nandakumar"]
 description = "Implementation of CTA-5007-B Common Access Token specification"
 license = "BSD-2-Clause"
-repository = "https://github.com/suhasHere/cat.rs.git"
+repository = "https://github.com/Quicr/cat-token"
 keywords = ["cat", "cwt", "cbor", "token", "authentication"]
 categories = ["authentication", "cryptography"]
 
