@@ -6,7 +6,7 @@
 //! This example shows how a MOQT relay would validate incoming tokens
 //! and authorize MOQT operations.
 
-use cat_impl::prelude::*;
+use cat_token::prelude::*;
 use chrono::{Duration, Utc};
 
 fn main() {

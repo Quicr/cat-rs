@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::*;
+use cat_token::*;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 const SMALL_DATA: &[u8] = b"Hello, World!";

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator, roles};
-use cat_impl::*;
+use cat_token::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator, roles};
+use cat_token::*;
 use chrono::{Duration, Utc};
 use std::sync::Arc;
 use std::thread;

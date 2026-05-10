@@ -1,5 +1,5 @@
 [package]
-name = "cat_impl"
+name = "cat-token"
 version = "0.1.0"
 edition = "2024"
 authors = ["Suhas Nandakumar"]
@@ -41,7 +41,7 @@ tokio-test = "0.4"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [lib]
-name = "cat_impl"
+name = "cat_token"
 path = "src/lib.rs"
 
 [[bin]]

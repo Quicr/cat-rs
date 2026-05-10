@@ -4,7 +4,7 @@
 //! Prelude module for convenient imports
 //!
 //! ```rust,ignore
-//! use cat_impl::prelude::*;
+//! use cat_token::prelude::*;
 //! ```
 
 // Core CAT types (generic, non-MOQT)

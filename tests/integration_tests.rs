@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::*;
+use cat_token::*;
 use chrono::{Duration, Utc};
 
 #[test]
@@ -318,8 +318,8 @@ fn test_all_cat_claims() {
             catif: None,
             catr: None,
         },
-        composite: cat_impl::claims::CompositeClaims::default(),
-        moqt: cat_impl::claims::MoqtClaims {
+        composite: cat_token::claims::CompositeClaims::default(),
+        moqt: cat_token::claims::MoqtClaims {
             moqt: None,
             moqt_reval: None,
         },
@@ -425,7 +425,7 @@ fn test_geographic_validation() {
 
 #[test]
 fn test_moqt_claims_creation() {
-    use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
+    use cat_token::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
     let namespace_match = NamespaceMatch::exact(b"example.com".to_vec());
     let track_match = BinaryMatch::prefix(b"/bob".to_vec());
@@ -487,7 +487,7 @@ fn test_moqt_claims_creation() {
 
 #[test]
 fn test_moqt_binary_match() {
-    use cat_impl::claims::BinaryMatch;
+    use cat_token::claims::BinaryMatch;
 
     // Test exact match
     let exact_match = BinaryMatch::exact(b"example.com".to_vec());
@@ -521,7 +521,7 @@ fn test_moqt_binary_match() {
 
 #[test]
 fn test_moqt_token_encoding_decoding() {
-    use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
+    use cat_token::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
     let key = HmacSha256Algorithm::generate_key().unwrap();
     let algorithm = HmacSha256Algorithm::from_secret_key(&key);
@@ -575,7 +575,7 @@ fn test_moqt_token_encoding_decoding() {
 
 #[test]
 fn test_moqt_multiple_scopes_authorization() {
-    use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
+    use cat_token::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
     // Create multiple scopes with different permissions
     let scope1 = MoqtScope::new()
@@ -634,7 +634,7 @@ fn test_moqt_multiple_scopes_authorization() {
 
 #[test]
 fn test_moqt_action_conversion() {
-    use cat_impl::claims::MoqtAction;
+    use cat_token::claims::MoqtAction;
 
     // Test TryFrom<i32> conversion
     assert_eq!(MoqtAction::try_from(0).unwrap(), MoqtAction::ClientSetup);
@@ -660,7 +660,7 @@ fn test_moqt_action_conversion() {
 
 #[test]
 fn test_moqt_spec_example_exact_match() {
-    use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
+    use cat_token::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
     // Example from spec: Allow with an exact match "example.com/bob"
     let scope = MoqtScope::new()
@@ -697,7 +697,7 @@ fn test_moqt_spec_example_exact_match() {
 
 #[test]
 fn test_moqt_spec_example_prefix_match() {
-    use cat_impl::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
+    use cat_token::claims::{BinaryMatch, MoqtAction, MoqtScope, NamespaceMatch};
 
     // Example from spec: Allow with a prefix match "example.com/bob"
     let scope = MoqtScope::new()

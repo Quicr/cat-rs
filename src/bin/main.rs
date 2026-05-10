@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::*;
+use cat_token::*;
 use chrono::{Duration, Utc};
 use std::env;
 
@@ -69,7 +69,7 @@ fn generate_es256_example() -> Result<(), Box<dyn std::error::Error>> {
     let encoded = encode_token(&token, &algorithm)?;
 
     // Output public key as JWK for structured, portable format
-    let jwk = cat_impl::Jwk::from_es256_verifying_key(algorithm.verifying_key())?;
+    let jwk = cat_token::Jwk::from_es256_verifying_key(algorithm.verifying_key())?;
     println!(
         "ES256 Public Key (JWK): {}",
         serde_json::to_string(&jwk).unwrap_or_else(|_| "Error serializing JWK".to_string())
@@ -92,7 +92,7 @@ fn generate_ps256_example() -> Result<(), Box<dyn std::error::Error>> {
     let encoded = encode_token(&token, &algorithm)?;
 
     // Output public key as JWK for structured, portable format
-    let jwk = cat_impl::Jwk::from_rsa_public_key(algorithm.public_key());
+    let jwk = cat_token::Jwk::from_rsa_public_key(algorithm.public_key());
     println!(
         "PS256 Public Key (JWK): {}",
         serde_json::to_string(&jwk).unwrap_or_else(|_| "Error serializing JWK".to_string())

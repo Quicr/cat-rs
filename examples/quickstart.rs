@@ -6,7 +6,7 @@
 //! Minimal example showing token creation, encoding, decoding, and validation
 //! in under 50 lines. Start here if you're new to the library.
 
-use cat_impl::prelude::*;
+use cat_token::prelude::*;
 use chrono::{Duration, Utc};
 
 fn main() -> Result<(), CatError> {

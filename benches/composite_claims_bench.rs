@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::claims::{
+use cat_token::claims::{
     CatToken, CompositeClaim, CompositeClaims, CompositeOperator, composite_utils,
 };
-use cat_impl::token::CatTokenValidator;
+use cat_token::token::CatTokenValidator;
 use chrono::{Duration, Utc};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 

@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::CatError;
-use cat_impl::claims::{
+use cat_token::CatError;
+use cat_token::claims::{
     CatToken, ClaimSet, CompositeClaim, CompositeClaims, CompositeOperator, composite_utils,
 };
-use cat_impl::token::CatTokenValidator;
+use cat_token::token::CatTokenValidator;
 use chrono::{Duration, Utc};
 
 fn create_valid_token(issuer: &str) -> CatToken {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::*;
+use cat_token::*;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_patterns() -> Vec<String> {

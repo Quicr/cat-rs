@@ -6,7 +6,7 @@
 //! CAT (Common Access Token) can be used for any protocol, not just MOQT.
 //! This example shows how to create tokens for a generic CDN or API gateway.
 
-use cat_impl::{
+use cat_token::{
     CatTokenBuilder, CatTokenValidator, Es256Algorithm, NetworkIdentifier, UriPattern,
     decode_token, encode_token,
 };

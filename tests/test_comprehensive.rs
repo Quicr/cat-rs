@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::*;
+use cat_token::*;
 use chrono::Utc;
 
 #[test]
@@ -43,7 +43,7 @@ fn test_comprehensive_token_creation() {
         .interface_data("mobile-interface-v2")
         // DPoP claims
         .confirmation(b"jwk-thumbprint-xyz".to_vec())
-        .dpop_settings(cat_impl::CatDpopSettings::new().with_window(300))
+        .dpop_settings(cat_token::CatDpopSettings::new().with_window(300))
         // Request claims
         .interface_claim("auth-interface")
         .request_claim("login-request-abc")
@@ -386,7 +386,7 @@ fn test_maximal_token() {
         // All DPoP claims
         .with_confirmation(b"maximal-confirmation-key".to_vec())
         .with_dpop_settings(
-            cat_impl::CatDpopSettings::new()
+            cat_token::CatDpopSettings::new()
                 .with_window(600)
                 .with_jti_processing(true),
         )

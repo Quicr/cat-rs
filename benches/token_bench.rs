@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2022 Quicr
 // SPDX-License-Identifier: BSD-2-Clause
 
-use cat_impl::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator};
-use cat_impl::*;
+use cat_token::moqt::{MoqtAuthRequest, MoqtScopeBuilder, MoqtValidator};
+use cat_token::*;
 use chrono::{Duration, Utc};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
@@ -55,7 +55,7 @@ fn create_complex_token() -> CatToken {
         .with_issued_at(iat)
         .with_interface_data("mobile-interface-v2")
         .with_confirmation(b"jwk-thumbprint-xyz".to_vec())
-        .with_dpop_settings(cat_impl::CatDpopSettings::new().with_window(300))
+        .with_dpop_settings(cat_token::CatDpopSettings::new().with_window(300))
         .with_interface_claim("auth-interface")
         .with_request_claim("login-request-abc")
         .with_ip_address("192.168.1.100")
