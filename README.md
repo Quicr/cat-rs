@@ -7,6 +7,12 @@
 
 Rust implementation of [Common Access Token for Media Over QUIC Transport (CAT-4-MOQT)](https://github.com/moq-wg/CAT-4-MOQT) based on [CTA-5007-B](https://shop.cta.tech/products/common-access-token).
 
+## Installation
+
+```bash
+cargo add cat-token
+```
+
 ## Features
 
 - Full CTA-5007-B CAT token support with CBOR/CWT encoding
@@ -50,8 +56,8 @@ cargo bench
 ## Example
 
 ```rust
-use cat_impl::*;
-use cat_impl::moqt::{MoqtValidator, MoqtAuthRequest, MoqtScopeBuilder, roles};
+use cat_token::*;
+use cat_token::moqt::{MoqtValidator, MoqtAuthRequest, MoqtScopeBuilder, roles};
 use chrono::{Duration, Utc};
 
 // Create a publisher token for live streaming

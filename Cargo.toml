@@ -1,6 +1,6 @@
 [package]
 name = "cat-token"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Suhas Nandakumar"]
 description = "Implementation of CTA-5007-B Common Access Token specification"
